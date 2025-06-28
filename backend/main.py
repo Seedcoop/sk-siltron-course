@@ -1,0 +1,251 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+import os
+import json
+from pathlib import Path
+from typing import List
+from datetime import datetime
+
+app = FastAPI()
+
+# 환경변수에서 허용할 origins 가져오기
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+
+# CORS 설정 (프로덕션 환경 대응)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
+
+# contents 폴더가 존재하는지 확인
+CONTENTS_DIR = Path("contents")
+if not CONTENTS_DIR.exists():
+    CONTENTS_DIR.mkdir()
+
+# 정적 파일 서빙 (이미지, 비디오, 오디오)
+app.mount("/static", StaticFiles(directory="contents"), name="static")
+
+@app.get("/")
+async def root():
+    return {"message": "SK Siltron Media Viewer API", "status": "running"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/files")
+async def get_files():
+    """contents 폴더의 모든 미디어 파일 목록을 반환 (order.json 순서 적용)"""
+    try:
+        # 지원하는 파일 확장자
+        supported_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', 
+                              '.mp4', '.avi', '.mov', '.wmv', '.webm',
+                              '.mp3', '.wav', '.ogg', '.m4a'}
+        
+        # 실제 존재하는 미디어 파일들 수집
+        available_files = []
+        for file_path in CONTENTS_DIR.iterdir():
+            if file_path.is_file() and file_path.suffix.lower() in supported_extensions:
+                available_files.append(file_path.name)
+        
+        # order.json 파일 읽기
+        order_file = CONTENTS_DIR / "order.json"
+        ordered_files = []
+        
+        if order_file.exists():
+            try:
+                with open(order_file, 'r', encoding='utf-8') as f:
+                    order_data = json.load(f)
+                    defined_order = order_data.get('order', [])
+                
+                # JSON에 정의된 순서대로 아이템 추가 (파일 또는 퀴즈 객체)
+                for item in defined_order:
+                    if isinstance(item, str):
+                        # 파일인 경우: 실제 존재하는 파일만 추가
+                        if item in available_files:
+                            ordered_files.append(item)
+                    elif isinstance(item, dict) and item.get('type') == 'quiz':
+                        # 퀴즈 객체인 경우: 그대로 추가
+                        ordered_files.append(item)
+                
+                # JSON에 정의된 아이템들만 표시 (나머지 파일들은 무시)
+                
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"order.json 파일 파싱 오류: {e}")
+                # JSON 오류 시 기본 알파벳 순 정렬
+                available_files.sort()
+                ordered_files = available_files
+        else:
+            # order.json이 없으면 기본 알파벳 순 정렬
+            available_files.sort()
+            ordered_files = available_files
+        
+        return ordered_files
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"파일 목록을 가져오는데 실패했습니다: {str(e)}")
+
+@app.get("/api/file/{filename}")
+async def get_file(filename: str):
+    """특정 파일을 반환"""
+    file_path = CONTENTS_DIR / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
+    
+    return FileResponse(file_path)
+
+@app.get("/api/order")
+async def get_order():
+    """현재 파일 순서 설정을 반환"""
+    order_file = CONTENTS_DIR / "order.json"
+    
+    if order_file.exists():
+        try:
+            with open(order_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {"order": []}
+    else:
+        return {"order": []}
+
+@app.post("/api/order")
+async def update_order(order_data: dict):
+    """파일 순서를 업데이트"""
+    try:
+        order_file = CONTENTS_DIR / "order.json"
+        
+        # 기본 구조 검증
+        if "order" not in order_data or not isinstance(order_data["order"], list):
+            raise HTTPException(status_code=400, detail="잘못된 순서 데이터 형식입니다")
+        
+        # order.json 파일에 저장
+        with open(order_file, 'w', encoding='utf-8') as f:
+            json.dump(order_data, f, ensure_ascii=False, indent=2)
+        
+        return {"message": "파일 순서가 업데이트되었습니다", "order": order_data["order"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"순서 업데이트에 실패했습니다: {str(e)}")
+
+@app.get("/api/quiz-results")
+async def get_quiz_results():
+    """퀴즈 결과를 반환"""
+    results_file = CONTENTS_DIR / "quiz_results.json"
+    
+    if results_file.exists():
+        try:
+            with open(results_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {"results": []}
+    else:
+        return {"results": []}
+
+@app.post("/api/quiz-results")
+async def save_quiz_result(result_data: dict):
+    """퀴즈 결과를 저장"""
+    try:
+        results_file = CONTENTS_DIR / "quiz_results.json"
+        
+        # 기존 결과 불러오기
+        if results_file.exists():
+            try:
+                with open(results_file, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+            except json.JSONDecodeError:
+                existing_data = {"results": []}
+        else:
+            existing_data = {"results": []}
+        
+        # 새 결과 추가
+        if "results" not in existing_data:
+            existing_data["results"] = []
+        
+        existing_data["results"].append(result_data)
+        
+        # 파일에 저장
+        with open(results_file, 'w', encoding='utf-8') as f:
+            json.dump(existing_data, f, ensure_ascii=False, indent=2)
+        
+        return {"message": "퀴즈 결과가 저장되었습니다", "result": result_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"퀴즈 결과 저장에 실패했습니다: {str(e)}")
+
+def get_quiz_number_from_order(quiz_item, order_list):
+    """order.json에서 퀴즈의 번호를 계산"""
+    quiz_count = 0
+    for item in order_list:
+        if isinstance(item, dict) and item.get('type') == 'quiz':
+            quiz_count += 1
+            if item == quiz_item:
+                return quiz_count
+    return quiz_count + 1  # 찾지 못한 경우 마지막 번호 + 1
+
+@app.post("/api/save-quiz-answer")
+async def save_quiz_answer(answer_data: dict):
+    """퀴즈 답변을 저장 (quiz_number, option_number 자동 계산)"""
+    try:
+        # order.json에서 퀴즈 순서 확인
+        order_file = CONTENTS_DIR / "order.json"
+        if not order_file.exists():
+            raise HTTPException(status_code=404, detail="order.json 파일을 찾을 수 없습니다")
+        
+        with open(order_file, 'r', encoding='utf-8') as f:
+            order_data = json.load(f)
+        
+        order_list = order_data.get('order', [])
+        quiz_item = answer_data.get('quiz_item')
+        selected_option_index = answer_data.get('selected_option_index')
+        
+        if quiz_item is None or selected_option_index is None:
+            raise HTTPException(status_code=400, detail="quiz_item과 selected_option_index가 필요합니다")
+        
+        # 퀴즈 번호 계산
+        quiz_number = get_quiz_number_from_order(quiz_item, order_list)
+        option_number = selected_option_index + 1  # 0-based index를 1-based로 변환
+        
+        # 저장할 결과 데이터
+        result_data = {
+            "quiz_number": quiz_number,
+            "question": quiz_item.get('question', ''),
+            "selected_option_index": selected_option_index,
+            "option_number": option_number,
+            "selected_option": quiz_item.get('options', [])[selected_option_index] if selected_option_index < len(quiz_item.get('options', [])) else '',
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # 기존 결과 불러오기
+        results_file = CONTENTS_DIR / "quiz_results.json"
+        if results_file.exists():
+            try:
+                with open(results_file, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+            except json.JSONDecodeError:
+                existing_data = {"results": []}
+        else:
+            existing_data = {"results": []}
+        
+        if "results" not in existing_data:
+            existing_data["results"] = []
+        
+        # 동일한 퀴즈 번호의 기존 답변 제거 (덮어쓰기)
+        existing_data["results"] = [r for r in existing_data["results"] if r.get("quiz_number") != quiz_number]
+        
+        # 새 결과 추가
+        existing_data["results"].append(result_data)
+        
+        # 파일에 저장
+        with open(results_file, 'w', encoding='utf-8') as f:
+            json.dump(existing_data, f, ensure_ascii=False, indent=2)
+        
+        return {"message": "퀴즈 답변이 저장되었습니다", "result": result_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"퀴즈 답변 저장에 실패했습니다: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000) 
