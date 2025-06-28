@@ -35,7 +35,7 @@ function App() {
     return 'unknown';
   };
 
-  // 우선순위 기반 미디어 프리로딩 함수 (로딩 속도 대폭 향상)
+  // 전체 미디어 한 번에 완전 프리로딩 (넘길 때 로딩 제로!)
   const preloadMedia = useCallback(async (mediaFiles) => {
     if (mediaFiles.length === 0) return;
     
@@ -46,114 +46,87 @@ function App() {
     let loadedCount = 0;
     const totalMedia = mediaFiles.length;
 
-    // 1단계: 우선순위 파일들 (현재 인덱스 주변 ±3) 빠른 썸네일 로딩
-    const priorityRange = 3;
-    const priorityFiles = mediaFiles.slice(
-      Math.max(0, currentIndex - priorityRange),
-      Math.min(mediaFiles.length, currentIndex + priorityRange + 1)
-    );
+    console.log(`🚀 모든 미디어 ${totalMedia}개 한 번에 로딩 시작! 잠시만 기다려주세요...`);
 
-    console.log(`우선순위 파일 ${priorityFiles.length}개 먼저 로딩 시작...`);
-
-    // 썸네일 먼저 로딩 (빠름)
-    const loadThumbnail = (fileName) => {
+    // 모든 파일을 원본 그대로 완전히 로딩
+    const loadFullMedia = (fileName) => {
       return new Promise((resolve) => {
         const fileType = getFileType(fileName);
+        const fileUrl = `${API_BASE_URL}/static/${fileName}`;
         
         if (fileType === 'image') {
-          const thumbnailUrl = `${API_BASE_URL}/api/file/${fileName}/thumbnail?size=400`;
           const img = new Image();
           img.onload = () => {
+            // 이미지 완전 로딩 완료
             mediaMap.set(fileName, { 
-              url: `${API_BASE_URL}/static/${fileName}`, 
-              thumbnailUrl,
+              url: fileUrl,
               element: img, 
               type: 'image',
-              loaded: 'thumbnail'
+              loaded: 'complete',
+              preloaded: true
             });
             loadedCount++;
             setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+            console.log(`✅ 이미지 로딩 완료: ${fileName} (${loadedCount}/${totalMedia})`);
             resolve();
           };
           img.onerror = () => {
-            console.warn(`썸네일 로딩 실패, 원본 로딩 시도: ${fileName}`);
-            // 썸네일 실패 시 원본 로딩
-            const originalImg = new Image();
-            originalImg.onload = () => {
-              mediaMap.set(fileName, { 
-                url: `${API_BASE_URL}/static/${fileName}`, 
-                element: originalImg, 
-                type: 'image',
-                loaded: 'full'
-              });
-              loadedCount++;
-              setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
-              resolve();
-            };
-            originalImg.onerror = () => {
-              loadedCount++;
-              setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
-              resolve();
-            };
-            originalImg.src = `${API_BASE_URL}/static/${fileName}`;
+            console.error(`❌ 이미지 로딩 실패: ${fileName}`);
+            loadedCount++;
+            setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+            resolve();
           };
-          img.src = thumbnailUrl;
+          img.src = fileUrl;
+          
         } else if (fileType === 'video') {
           const video = document.createElement('video');
-          video.preload = 'metadata';
-          video.onloadeddata = () => {
+          video.preload = 'auto'; // 전체 비디오 로딩
+          video.oncanplaythrough = () => {
+            // 비디오 완전 로딩 완료
             mediaMap.set(fileName, { 
-              url: `${API_BASE_URL}/static/${fileName}`, 
+              url: fileUrl,
               element: video, 
               type: 'video',
-              loaded: 'metadata'
+              loaded: 'complete',
+              preloaded: true
             });
             loadedCount++;
             setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+            console.log(`✅ 비디오 로딩 완료: ${fileName} (${loadedCount}/${totalMedia})`);
             resolve();
           };
           video.onerror = () => {
-            console.error(`비디오 메타데이터 로딩 실패: ${fileName}`);
+            console.error(`❌ 비디오 로딩 실패: ${fileName}`);
             loadedCount++;
             setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
             resolve();
           };
-          video.src = `${API_BASE_URL}/static/${fileName}`;
+          video.src = fileUrl;
+          
         } else {
           // 오디오나 기타 파일
           mediaMap.set(fileName, { 
-            url: `${API_BASE_URL}/static/${fileName}`, 
+            url: fileUrl,
             element: null, 
             type: fileType,
-            loaded: 'full'
+            loaded: 'complete',
+            preloaded: true
           });
           loadedCount++;
           setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+          console.log(`✅ 기타 파일 처리 완료: ${fileName} (${loadedCount}/${totalMedia})`);
           resolve();
         }
       });
     };
 
-    // 우선순위 파일들 먼저 로딩
-    await Promise.all(priorityFiles.map(loadThumbnail));
-    
-    // 2단계: 나머지 파일들 백그라운드 로딩
-    const remainingFiles = mediaFiles.filter(file => !priorityFiles.includes(file));
-    
-    if (remainingFiles.length > 0) {
-      console.log(`나머지 ${remainingFiles.length}개 파일 백그라운드 로딩...`);
-      
-      // 백그라운드에서 나머지 파일들도 로딩 (비동기)
-      setTimeout(async () => {
-        await Promise.all(remainingFiles.map(loadThumbnail));
-        console.log(`전체 ${mediaFiles.length}개 파일 로딩 완료!`);
-      }, 500); // 0.5초 후 백그라운드 로딩 시작
-    }
+    // 🔥 모든 파일을 동시에 로딩 (병렬 처리)
+    await Promise.all(mediaFiles.map(loadFullMedia));
     
     setPreloadedMedia(mediaMap);
     setPreloading(false);
-    console.log(`우선순위 ${priorityFiles.length}개 파일 로딩 완료!`);
-  }, [currentIndex]);
+    console.log(`🎉 전체 ${mediaFiles.length}개 파일 완전 로딩 완료! 이제 넘길 때 즉시 표시됩니다!`);
+  }, []);
 
   // 파일 목록 로드
   useEffect(() => {
@@ -461,53 +434,55 @@ function App() {
     return renderMediaByType(currentItem, fileUrl, fileType);
   };
 
-  // 최적화된 미디어 렌더링 (썸네일 우선 + 백그라운드 원본 로딩)
+  // 완전 프리로딩된 미디어 즉시 렌더링 (로딩 제로!)
   const renderMediaByType = (fileName, fileUrl, fileType) => {
     const preloadedItem = preloadedMedia.get(fileName);
     
-    // 프리로딩된 데이터가 있는 경우 썸네일 URL 우선 사용
-    const displayUrl = preloadedItem?.thumbnailUrl || fileUrl;
-    const isFullyLoaded = preloadedItem?.loaded === 'full' || preloadedItem?.loaded === 'metadata';
+    // 프리로딩이 완료된 경우 즉시 표시, 아니면 로딩 메시지
+    if (!preloadedItem || !preloadedItem.preloaded) {
+      return (
+        <div className="media-loading">
+          <div className="loading-spinner">⏳</div>
+          <div>미디어 준비 중...</div>
+        </div>
+      );
+    }
     
     switch (fileType) {
       case 'image':
+        // 프리로딩된 이미지 요소 직접 복제해서 사용 (즉시 표시)
+        const preloadedImg = preloadedItem.element;
         return (
           <img 
-            src={displayUrl}
+            src={preloadedImg.src}
             alt={fileName}
             className="media-content"
             style={{ 
-              filter: isFullyLoaded ? 'none' : 'brightness(0.9)',
-              transition: 'filter 0.3s ease'
+              filter: 'none',
+              opacity: 1,
+              transition: 'opacity 0.2s ease'
             }}
-            onLoad={(e) => {
-              // 썸네일이 로드된 후 백그라운드에서 원본 로딩
-              if (preloadedItem?.loaded === 'thumbnail') {
-                const fullImg = new Image();
-                fullImg.onload = () => {
-                  // 원본 로딩 완료 시 부드럽게 교체
-                  e.target.src = fileUrl;
-                  e.target.style.filter = 'none';
-                  console.log(`원본 이미지 로딩 완료: ${fileName}`);
-                };
-                fullImg.src = fileUrl;
-              }
+            onLoad={() => {
+              console.log(`🚀 프리로딩된 이미지 즉시 표시: ${fileName}`);
             }}
           />
         );
+        
       case 'video':
+        // 프리로딩된 비디오 설정 사용
         return (
           <video 
-            src={fileUrl} 
+            src={fileUrl}
             controls
             autoPlay={userInteracted}
             muted={userInteracted}
             loop
             className="media-content"
-            preload="metadata"
+            preload="auto"
             style={{ 
-              filter: isFullyLoaded ? 'none' : 'brightness(0.9)',
-              transition: 'filter 0.3s ease'
+              filter: 'none',
+              opacity: 1,
+              transition: 'opacity 0.2s ease'
             }}
             onClick={(e) => {
               // 동영상 클릭 시 음소거 해제하고 재생
@@ -517,7 +492,7 @@ function App() {
               }
             }}
             onLoadedData={(e) => {
-              e.target.style.filter = 'none';
+              console.log(`🚀 프리로딩된 비디오 즉시 재생 가능: ${fileName}`);
               // 사용자가 상호작용했고 동영상이 로드되면 자동재생 시도
               if (userInteracted && e.target.paused) {
                 e.target.play().catch(console.error);
@@ -525,6 +500,7 @@ function App() {
             }}
           />
         );
+        
       case 'audio':
         return (
           <div className="audio-container">
@@ -533,9 +509,11 @@ function App() {
               src={fileUrl} 
               controls
               className="audio-player"
+              preload="auto"
             />
           </div>
         );
+        
       default:
         return <div className="unsupported">지원하지 않는 파일 형식입니다.</div>;
     }
@@ -546,9 +524,10 @@ function App() {
       <div className="app">
         <div className="loading">
           <div className="loading-message">
-            {preloading ? (
-              preloadProgress < 50 ? '우선순위 미디어 로딩 중...' : '백그라운드 로딩 진행 중...'
-            ) : '파일 목록을 불러오는 중...'}
+            {preloading ? 
+              '🚀 모든 미디어 완전 로딩 중... 잠시만 기다려주세요!' : 
+              '파일 목록을 불러오는 중...'
+            }
           </div>
           {preloading && (
             <div className="preload-progress">
@@ -560,11 +539,12 @@ function App() {
               </div>
               <div className="progress-text">
                 {preloadProgress}% 완료
-                {preloadProgress >= 50 && (
-                  <span className="progress-subtitle">
-                    · 곧 시작할 수 있습니다!
-                  </span>
-                )}
+              </div>
+              <div className="progress-subtitle">
+                {preloadProgress < 30 ? '💾 모든 이미지와 동영상을 메모리에 저장 중...' :
+                 preloadProgress < 70 ? '⚡ 거의 다 완료됐어요! 조금만 더...' :
+                 preloadProgress < 100 ? '🎯 마무리 중입니다... 곧 완료!' :
+                 '🎉 완료! 이제 페이지 넘길 때 즉시 표시됩니다!'}
               </div>
             </div>
           )}
