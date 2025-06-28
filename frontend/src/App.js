@@ -9,6 +9,9 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [preloading, setPreloading] = useState(false);
+  const [preloadProgress, setPreloadProgress] = useState(0);
+  const [preloadedMedia, setPreloadedMedia] = useState(new Map());
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
   const [mouseDown, setMouseDown] = useState(false);
@@ -19,6 +22,82 @@ function App() {
   const [userInteracted, setUserInteracted] = useState(false); // 사용자 상호작용 여부
   const containerRef = useRef(null);
 
+  // 파일 타입 확인 함수 (프리로딩에서 사용하므로 먼저 정의)
+  const getFileType = (filename) => {
+    const ext = filename.toLowerCase().split('.').pop();
+    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(ext)) {
+      return 'image';
+    } else if (['mp4', 'avi', 'mov', 'wmv', 'webm'].includes(ext)) {
+      return 'video';
+    } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
+      return 'audio';
+    }
+    return 'unknown';
+  };
+
+  // 미디어 프리로딩 함수
+  const preloadMedia = useCallback(async (mediaFiles) => {
+    if (mediaFiles.length === 0) return;
+    
+    setPreloading(true);
+    setPreloadProgress(0);
+    
+    const mediaMap = new Map();
+    let loadedCount = 0;
+    const totalMedia = mediaFiles.length;
+    
+    const loadPromises = mediaFiles.map((fileName) => {
+      return new Promise((resolve) => {
+        const fileUrl = `${API_BASE_URL}/static/${fileName}`;
+        const fileType = getFileType(fileName);
+        
+        if (fileType === 'image') {
+          const img = new Image();
+          img.onload = () => {
+            mediaMap.set(fileName, { url: fileUrl, element: img, type: 'image' });
+            loadedCount++;
+            setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+            resolve();
+          };
+          img.onerror = () => {
+            console.error(`이미지 로딩 실패: ${fileName}`);
+            loadedCount++;
+            setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+            resolve();
+          };
+          img.src = fileUrl;
+        } else if (fileType === 'video') {
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.onloadeddata = () => {
+            mediaMap.set(fileName, { url: fileUrl, element: video, type: 'video' });
+            loadedCount++;
+            setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+            resolve();
+          };
+          video.onerror = () => {
+            console.error(`비디오 로딩 실패: ${fileName}`);
+            loadedCount++;
+            setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+            resolve();
+          };
+          video.src = fileUrl;
+        } else {
+          // 오디오나 기타 파일은 바로 완료 처리
+          mediaMap.set(fileName, { url: fileUrl, element: null, type: fileType });
+          loadedCount++;
+          setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+          resolve();
+        }
+      });
+    });
+    
+    await Promise.all(loadPromises);
+    setPreloadedMedia(mediaMap);
+    setPreloading(false);
+    console.log(`${mediaFiles.length}개의 미디어 파일 프리로딩 완료!`);
+  }, []);
+
   // 파일 목록 로드
   useEffect(() => {
     const loadFiles = async () => {
@@ -26,6 +105,17 @@ function App() {
         setLoading(true);
         const response = await axios.get(`${API_BASE_URL}/api/files`);
         setFiles(response.data);
+        
+        // 파일 목록에서 실제 미디어 파일만 추출
+        const mediaFiles = response.data.filter(item => 
+          typeof item === 'string' && getFileType(item) !== 'unknown'
+        );
+        
+        // 미디어 파일들을 프리로딩
+        if (mediaFiles.length > 0) {
+          await preloadMedia(mediaFiles);
+        }
+        
         setError(null);
       } catch (err) {
         setError('파일을 불러오는데 실패했습니다.');
@@ -36,7 +126,7 @@ function App() {
     };
 
     loadFiles();
-  }, []);
+  }, [preloadMedia]);
 
   // currentIndex가 변경될 때 퀴즈 팝업 숨기기
   useEffect(() => {
@@ -52,8 +142,6 @@ function App() {
     }
     return null;
   }, [files, currentIndex]);
-
-
 
   // 다음 파일로 이동
   const nextFile = useCallback(() => {
@@ -259,18 +347,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextFile, prevFile]);
 
-  // 파일 타입 확인
-  const getFileType = (filename) => {
-    const ext = filename.toLowerCase().split('.').pop();
-    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(ext)) {
-      return 'image';
-    } else if (['mp4', 'avi', 'mov', 'wmv', 'webm'].includes(ext)) {
-      return 'video';
-    } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
-      return 'audio';
-    }
-    return 'unknown';
-  };
+
 
   // 퀴즈 팝업 렌더링
   const renderQuizPopup = (quizData, quizIndex) => {
@@ -327,8 +404,10 @@ function App() {
     return renderMediaByType(currentItem, fileUrl, fileType);
   };
 
-  // 미디어 타입별 렌더링
+  // 미디어 타입별 렌더링 (프리로딩된 미디어 사용)
   const renderMediaByType = (fileName, fileUrl, fileType) => {
+    const preloadedItem = preloadedMedia.get(fileName);
+    
     switch (fileType) {
       case 'image':
         return (
@@ -336,6 +415,7 @@ function App() {
             src={fileUrl} 
             alt={fileName}
             className="media-content"
+            style={preloadedItem ? {} : { filter: 'blur(5px)' }} // 프리로딩 안된 경우 블러 효과
           />
         );
       case 'video':
@@ -348,6 +428,7 @@ function App() {
             loop
             className="media-content"
             preload="metadata"
+            style={preloadedItem ? {} : { filter: 'blur(5px)' }} // 프리로딩 안된 경우 블러 효과
             onClick={(e) => {
               // 동영상 클릭 시 음소거 해제하고 재생
               e.target.muted = false;
@@ -382,7 +463,24 @@ function App() {
   if (loading) {
     return (
       <div className="app">
-        <div className="loading">파일을 불러오는 중...</div>
+        <div className="loading">
+          <div className="loading-message">
+            {preloading ? '미디어 파일을 준비하는 중...' : '파일 목록을 불러오는 중...'}
+          </div>
+          {preloading && (
+            <div className="preload-progress">
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${preloadProgress}%` }}
+                ></div>
+              </div>
+              <div className="progress-text">
+                {preloadProgress}% 완료
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
