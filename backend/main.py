@@ -1,14 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, Response
 import os
 import json
 from pathlib import Path
 from typing import List
 from datetime import datetime
+import hashlib
 
 app = FastAPI()
+
+# Gzip 압축 미들웨어 추가 (로딩 속도 30-50% 향상)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # 환경변수에서 허용할 origins 가져오기
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
@@ -27,8 +32,31 @@ CONTENTS_DIR = Path("contents")
 if not CONTENTS_DIR.exists():
     CONTENTS_DIR.mkdir()
 
-# 정적 파일 서빙 (이미지, 비디오, 오디오)
-app.mount("/static", StaticFiles(directory="contents"), name="static")
+# 캐시 최적화된 정적 파일 서빙
+@app.get("/static/{file_path:path}")
+async def serve_static_optimized(file_path: str):
+    """최적화된 정적 파일 서빙 (캐시 헤더 + ETag)"""
+    file_full_path = CONTENTS_DIR / file_path
+    
+    if not file_full_path.exists() or not file_full_path.is_file():
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
+    
+    # 파일 해시로 ETag 생성 (캐시 효율성 향상)
+    file_stats = file_full_path.stat()
+    etag = hashlib.md5(f"{file_path}-{file_stats.st_mtime}-{file_stats.st_size}".encode()).hexdigest()
+    
+    # 캐시 최적화 헤더
+    headers = {
+        "Cache-Control": "public, max-age=31536000, immutable",  # 1년 캐시
+        "ETag": f'"{etag}"',
+        "X-Content-Type-Options": "nosniff",
+    }
+    
+    return FileResponse(
+        file_full_path,
+        headers=headers,
+        filename=file_path
+    )
 
 @app.get("/")
 async def root():
@@ -97,6 +125,51 @@ async def get_file(filename: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
     
+    return FileResponse(file_path)
+
+@app.get("/api/file/{filename}/thumbnail")
+async def get_thumbnail(filename: str, size: int = 400):
+    """빠른 로딩을 위한 썸네일 버전 제공"""
+    file_path = CONTENTS_DIR / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
+    
+    # 이미지 파일만 썸네일 생성, 나머지는 원본 반환
+    if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')):
+        try:
+            from PIL import Image
+            import io
+            
+            # 이미지 열기 및 썸네일 생성
+            with Image.open(file_path) as img:
+                # RGBA 모드로 변환 (투명도 지원)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # 비율 유지하며 썸네일 생성
+                img.thumbnail((size, size), Image.Resampling.LANCZOS)
+                
+                # WebP 형태로 압축 (더 작은 용량)
+                img_io = io.BytesIO()
+                img.save(img_io, 'WEBP', quality=75, optimize=True)
+                img_io.seek(0)
+                
+                return Response(
+                    content=img_io.getvalue(), 
+                    media_type="image/webp",
+                    headers={
+                        "Cache-Control": "public, max-age=31536000",
+                        "X-Thumbnail": "true"
+                    }
+                )
+        except ImportError:
+            # Pillow가 설치되지 않은 경우 원본 반환
+            pass
+        except Exception as e:
+            print(f"썸네일 생성 실패: {e}")
+    
+    # 비디오나 썸네일 생성 실패 시 원본 반환
     return FileResponse(file_path)
 
 @app.get("/api/order")

@@ -35,7 +35,7 @@ function App() {
     return 'unknown';
   };
 
-  // 미디어 프리로딩 함수
+  // 우선순위 기반 미디어 프리로딩 함수 (로딩 속도 대폭 향상)
   const preloadMedia = useCallback(async (mediaFiles) => {
     if (mediaFiles.length === 0) return;
     
@@ -45,58 +45,115 @@ function App() {
     const mediaMap = new Map();
     let loadedCount = 0;
     const totalMedia = mediaFiles.length;
-    
-    const loadPromises = mediaFiles.map((fileName) => {
+
+    // 1단계: 우선순위 파일들 (현재 인덱스 주변 ±3) 빠른 썸네일 로딩
+    const priorityRange = 3;
+    const priorityFiles = mediaFiles.slice(
+      Math.max(0, currentIndex - priorityRange),
+      Math.min(mediaFiles.length, currentIndex + priorityRange + 1)
+    );
+
+    console.log(`우선순위 파일 ${priorityFiles.length}개 먼저 로딩 시작...`);
+
+    // 썸네일 먼저 로딩 (빠름)
+    const loadThumbnail = (fileName) => {
       return new Promise((resolve) => {
-        const fileUrl = `${API_BASE_URL}/static/${fileName}`;
         const fileType = getFileType(fileName);
         
         if (fileType === 'image') {
+          const thumbnailUrl = `${API_BASE_URL}/api/file/${fileName}/thumbnail?size=400`;
           const img = new Image();
           img.onload = () => {
-            mediaMap.set(fileName, { url: fileUrl, element: img, type: 'image' });
+            mediaMap.set(fileName, { 
+              url: `${API_BASE_URL}/static/${fileName}`, 
+              thumbnailUrl,
+              element: img, 
+              type: 'image',
+              loaded: 'thumbnail'
+            });
             loadedCount++;
             setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
             resolve();
           };
           img.onerror = () => {
-            console.error(`이미지 로딩 실패: ${fileName}`);
-            loadedCount++;
-            setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
-            resolve();
+            console.warn(`썸네일 로딩 실패, 원본 로딩 시도: ${fileName}`);
+            // 썸네일 실패 시 원본 로딩
+            const originalImg = new Image();
+            originalImg.onload = () => {
+              mediaMap.set(fileName, { 
+                url: `${API_BASE_URL}/static/${fileName}`, 
+                element: originalImg, 
+                type: 'image',
+                loaded: 'full'
+              });
+              loadedCount++;
+              setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+              resolve();
+            };
+            originalImg.onerror = () => {
+              loadedCount++;
+              setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+              resolve();
+            };
+            originalImg.src = `${API_BASE_URL}/static/${fileName}`;
           };
-          img.src = fileUrl;
+          img.src = thumbnailUrl;
         } else if (fileType === 'video') {
           const video = document.createElement('video');
           video.preload = 'metadata';
           video.onloadeddata = () => {
-            mediaMap.set(fileName, { url: fileUrl, element: video, type: 'video' });
+            mediaMap.set(fileName, { 
+              url: `${API_BASE_URL}/static/${fileName}`, 
+              element: video, 
+              type: 'video',
+              loaded: 'metadata'
+            });
             loadedCount++;
             setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
             resolve();
           };
           video.onerror = () => {
-            console.error(`비디오 로딩 실패: ${fileName}`);
+            console.error(`비디오 메타데이터 로딩 실패: ${fileName}`);
             loadedCount++;
             setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
             resolve();
           };
-          video.src = fileUrl;
+          video.src = `${API_BASE_URL}/static/${fileName}`;
         } else {
-          // 오디오나 기타 파일은 바로 완료 처리
-          mediaMap.set(fileName, { url: fileUrl, element: null, type: fileType });
+          // 오디오나 기타 파일
+          mediaMap.set(fileName, { 
+            url: `${API_BASE_URL}/static/${fileName}`, 
+            element: null, 
+            type: fileType,
+            loaded: 'full'
+          });
           loadedCount++;
           setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
           resolve();
         }
       });
-    });
+    };
+
+    // 우선순위 파일들 먼저 로딩
+    await Promise.all(priorityFiles.map(loadThumbnail));
     
-    await Promise.all(loadPromises);
+    // 2단계: 나머지 파일들 백그라운드 로딩
+    const remainingFiles = mediaFiles.filter(file => !priorityFiles.includes(file));
+    
+    if (remainingFiles.length > 0) {
+      console.log(`나머지 ${remainingFiles.length}개 파일 백그라운드 로딩...`);
+      
+      // 백그라운드에서 나머지 파일들도 로딩 (비동기)
+      setTimeout(async () => {
+        await Promise.all(remainingFiles.map(loadThumbnail));
+        console.log(`전체 ${mediaFiles.length}개 파일 로딩 완료!`);
+      }, 500); // 0.5초 후 백그라운드 로딩 시작
+    }
+    
     setPreloadedMedia(mediaMap);
     setPreloading(false);
-    console.log(`${mediaFiles.length}개의 미디어 파일 프리로딩 완료!`);
-  }, []);
+    console.log(`우선순위 ${priorityFiles.length}개 파일 로딩 완료!`);
+  }, [currentIndex]);
 
   // 파일 목록 로드
   useEffect(() => {
@@ -404,18 +461,38 @@ function App() {
     return renderMediaByType(currentItem, fileUrl, fileType);
   };
 
-  // 미디어 타입별 렌더링 (프리로딩된 미디어 사용)
+  // 최적화된 미디어 렌더링 (썸네일 우선 + 백그라운드 원본 로딩)
   const renderMediaByType = (fileName, fileUrl, fileType) => {
     const preloadedItem = preloadedMedia.get(fileName);
+    
+    // 프리로딩된 데이터가 있는 경우 썸네일 URL 우선 사용
+    const displayUrl = preloadedItem?.thumbnailUrl || fileUrl;
+    const isFullyLoaded = preloadedItem?.loaded === 'full' || preloadedItem?.loaded === 'metadata';
     
     switch (fileType) {
       case 'image':
         return (
           <img 
-            src={fileUrl} 
+            src={displayUrl}
             alt={fileName}
             className="media-content"
-            style={preloadedItem ? {} : { filter: 'blur(5px)' }} // 프리로딩 안된 경우 블러 효과
+            style={{ 
+              filter: isFullyLoaded ? 'none' : 'brightness(0.9)',
+              transition: 'filter 0.3s ease'
+            }}
+            onLoad={(e) => {
+              // 썸네일이 로드된 후 백그라운드에서 원본 로딩
+              if (preloadedItem?.loaded === 'thumbnail') {
+                const fullImg = new Image();
+                fullImg.onload = () => {
+                  // 원본 로딩 완료 시 부드럽게 교체
+                  e.target.src = fileUrl;
+                  e.target.style.filter = 'none';
+                  console.log(`원본 이미지 로딩 완료: ${fileName}`);
+                };
+                fullImg.src = fileUrl;
+              }
+            }}
           />
         );
       case 'video':
@@ -428,7 +505,10 @@ function App() {
             loop
             className="media-content"
             preload="metadata"
-            style={preloadedItem ? {} : { filter: 'blur(5px)' }} // 프리로딩 안된 경우 블러 효과
+            style={{ 
+              filter: isFullyLoaded ? 'none' : 'brightness(0.9)',
+              transition: 'filter 0.3s ease'
+            }}
             onClick={(e) => {
               // 동영상 클릭 시 음소거 해제하고 재생
               e.target.muted = false;
@@ -437,6 +517,7 @@ function App() {
               }
             }}
             onLoadedData={(e) => {
+              e.target.style.filter = 'none';
               // 사용자가 상호작용했고 동영상이 로드되면 자동재생 시도
               if (userInteracted && e.target.paused) {
                 e.target.play().catch(console.error);
@@ -465,7 +546,9 @@ function App() {
       <div className="app">
         <div className="loading">
           <div className="loading-message">
-            {preloading ? '미디어 파일을 준비하는 중...' : '파일 목록을 불러오는 중...'}
+            {preloading ? (
+              preloadProgress < 50 ? '우선순위 미디어 로딩 중...' : '백그라운드 로딩 진행 중...'
+            ) : '파일 목록을 불러오는 중...'}
           </div>
           {preloading && (
             <div className="preload-progress">
@@ -477,6 +560,11 @@ function App() {
               </div>
               <div className="progress-text">
                 {preloadProgress}% 완료
+                {preloadProgress >= 50 && (
+                  <span className="progress-subtitle">
+                    · 곧 시작할 수 있습니다!
+                  </span>
+                )}
               </div>
             </div>
           )}
