@@ -22,28 +22,30 @@
       "question": "어떤 영역을 선택하시겠습니까?",
       "choices": [
         {
-          "id": "area1",
-          "image": "선택지1-1.webp",
+          "id": "fap",
+          "image": "choices/선택지1-1.webp",
           "position": {
-            "x": 0.5,
-            "y": 0.6
+            "x": 0.35,
+            "y": 0.65
           },
           "size": {
             "width": 0.3,
             "height": 0.3
-          }
+          },
+          "results": "4.png"
         },
         {
-          "id": "area2", 
-          "image": "1.png",
+          "id": "emergency", 
+          "image": "choices/선택지1-1.webp",
           "position": {
-            "x": 0.5,
-            "y": 0.8
+            "x": 0.65,
+            "y": 0.65
           },
           "size": {
-            "width": 0.5,
-            "height": 0.5
-          }
+            "width": 0.3,
+            "height": 0.3
+          },
+          "results": "5.png"
         }
       ]
     },
@@ -51,6 +53,31 @@
     "9.mp4",
     "10.mp4",
     "11.png",
-    "12.png"
+    "12.png",
+    "fap/팹1.webm",
+    "fap/팹2.webm",
+    "fap/슬라이드10.png",
+    "fap/슬라이드11.png",
+    "emergency/상황실1.webm",
+    "emergency/상황실2.webm",
+    "emergency/슬라이드12.png",
+    "emergency/슬라이드13.png",
+    "promote/홍보실1.webm",
+    "promote/홍보실2.webm",
+    "promote/슬라이드14.png",
+    "promote/슬라이드15.png",
+    "QC/QC1.webm",
+    "QC/QC2.webm",
+    "QC/슬라이드16.png",
+    "QC/슬라이드17.png",
+    "research/연구실1.webm",
+    "research/연구실2.webm",
+    "research/슬라이드18.png",
+    "research/슬라이드19.png",
+    "tech/공정기술실1.webm",
+    "tech/공정기술실2.webm",
+    "tech/슬라이드20.png",
+    "tech/슬라이드21.png",
+    "슬라이드22.png"
   ]
 }

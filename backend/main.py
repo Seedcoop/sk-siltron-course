@@ -75,11 +75,19 @@ async def get_files():
                               '.mp4', '.avi', '.mov', '.wmv', '.webm',
                               '.mp3', '.wav', '.ogg', '.m4a'}
         
-        # 실제 존재하는 미디어 파일들 수집
+        # 실제 존재하는 미디어 파일들 수집 (하위 폴더 포함)
         available_files = []
-        for file_path in CONTENTS_DIR.iterdir():
-            if file_path.is_file() and file_path.suffix.lower() in supported_extensions:
-                available_files.append(file_path.name)
+        def collect_files(directory):
+            """재귀적으로 모든 미디어 파일 수집"""
+            for item in directory.iterdir():
+                if item.is_file() and item.suffix.lower() in supported_extensions:
+                    relative_path = item.relative_to(CONTENTS_DIR)
+                    # Windows 경로를 위해 \를 /로 변경
+                    available_files.append(str(relative_path).replace('\\', '/'))
+                elif item.is_dir():
+                    # 하위 폴더도 재귀적으로 탐색
+                    collect_files(item)
+        collect_files(CONTENTS_DIR)
         
         # order.json 파일 읽기
         order_file = CONTENTS_DIR / "order.json"

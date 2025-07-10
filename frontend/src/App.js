@@ -24,6 +24,11 @@ function App() {
   const [userInteracted, setUserInteracted] = useState(false); // 사용자 상호작용 여부
   const containerRef = useRef(null);
 
+  // URL 경로를 안전하게 인코딩하는 함수 (한글/특수문자 처리)
+  const safeEncodeURI = (path) => {
+    return path.split('/').map(encodeURIComponent).join('/');
+  };
+
   // 파일 타입 확인 함수 (프리로딩에서 사용하므로 먼저 정의)
   const getFileType = (filename) => {
     const ext = filename.toLowerCase().split('.').pop();
@@ -54,7 +59,7 @@ function App() {
     const loadFullMedia = (fileName) => {
       return new Promise((resolve) => {
         const fileType = getFileType(fileName);
-        const fileUrl = `${API_BASE_URL}/static/${fileName}`;
+        const fileUrl = `${API_BASE_URL}/static/${safeEncodeURI(fileName)}`;
         
         if (fileType === 'image') {
           const img = new Image();
@@ -160,32 +165,11 @@ function App() {
     loadFiles();
   }, [preloadMedia]);
 
-  // 브라우저 캐시에서 선택지 결과 로드
-  useEffect(() => {
-    const loadCachedChoices = () => {
-      try {
-        const cachedData = localStorage.getItem('skSiltronChoices');
-        if (cachedData) {
-          const parsedData = JSON.parse(cachedData);
-          if (parsedData.userChoices && parsedData.userChoices.choices) {
-            setChoiceAnswers(parsedData.userChoices.choices);
-            console.log('캐시된 선택지 결과 로드:', parsedData.userChoices.choices);
-          }
-        }
-      } catch (error) {
-        console.error('캐시된 선택지 결과 로드 실패:', error);
-      }
-    };
-
-    loadCachedChoices();
-  }, []);
-
   // currentIndex가 변경될 때 팝업 숨기기 및 choice 타입 확인
   useEffect(() => {
     setShowQuiz(false);
     setShowChoice(false);
     
-    // 현재 아이템이 choice 타입인지 확인
     if (files.length > 0 && currentIndex < files.length) {
       const currentItem = files[currentIndex];
       if (typeof currentItem === 'object' && currentItem.type === 'choice') {
@@ -224,59 +208,21 @@ function App() {
     }
   }, []);
 
-  // 선택지 선택 처리
-  const handleChoiceSelect = useCallback(async (choiceData, selectedChoiceId) => {
-    try {
-      const choiceId = `choice_${choiceData.choiceIndex}`;
-      
-      // 백엔드에 저장
-      const response = await axios.post(`${API_BASE_URL}/api/save-choice`, {
-        choice_id: choiceId,
-        selected_id: selectedChoiceId,
-        choice_index: choiceData.choiceIndex
-      });
-
-      // 브라우저 캐시에 저장
-      if (response.data.cacheData) {
-        saveToBrowserCache(response.data.cacheData);
-        setChoiceAnswers(response.data.cacheData.userChoices.choices);
-      }
-
-      console.log('선택지 저장 완료:', response.data);
-      
-      // 다음 화면으로 이동
-      setShowChoice(false);
-      setCurrentIndex((prevIndex) => {
-        let nextIndex = prevIndex + 1;
-        return nextIndex < files.length ? nextIndex : prevIndex;
-      });
-      
-    } catch (error) {
-      console.error('선택지 저장 실패:', error);
-      // 실패해도 다음으로 진행
-      setShowChoice(false);
-      setCurrentIndex((prevIndex) => {
-        let nextIndex = prevIndex + 1;
-        return nextIndex < files.length ? nextIndex : prevIndex;
-      });
-    }
-  }, [saveToBrowserCache, files.length]);
-
   // 다음 파일로 이동
   const nextFile = useCallback(() => {
     // 사용자 상호작용 기록
     setUserInteracted(true);
     
     if (files.length > 0) {
-      // 현재 퀴즈나 선택지가 표시된 상태라면 더 이상 진행하지 않음
+      // 현재 퀴즈나 선택지, 갈림길이 표시된 상태라면 더 이상 진행하지 않음
       if (showQuiz || showChoice) {
         return;
       }
       
       // 다음 아이템이 퀴즈인지 확인
       const nextQuiz = getNextQuiz();
-      if (nextQuiz && quizAnswers[nextQuiz.quizIndex] === undefined) {
-        // 퀴즈가 있고 아직 답변하지 않았다면 퀴즈 팝업 표시
+      if (nextQuiz) {
+        // 퀴즈가 있고 아직 답변하지 않았다면 팝업 표시
         setShowQuiz(true);
         return;
       }
@@ -284,7 +230,7 @@ function App() {
       setCurrentIndex((prevIndex) => {
         let nextIndex = prevIndex + 1;
         
-        // 다음 아이템이 퀴즈나 선택지라면 건너뛰기
+        // 다음 아이템이 퀴즈라면 건너뛰기
         if (nextIndex < files.length) {
           const nextItem = files[nextIndex];
           if (typeof nextItem === 'object' && (nextItem.type === 'quiz' || nextItem.type === 'choice')) {
@@ -295,7 +241,7 @@ function App() {
         return nextIndex < files.length ? nextIndex : prevIndex;
       });
     }
-  }, [files, getNextQuiz, quizAnswers, showQuiz, showChoice]);
+  }, [files, getNextQuiz, showQuiz, showChoice]);
 
   // 이전 파일로 이동
   const prevFile = useCallback(() => {
@@ -319,21 +265,60 @@ function App() {
     }
   }, [files]);
 
+  // 선택지 선택 처리
+  const handleChoiceSelect = useCallback((choiceData, selectedChoiceId) => {
+    const selectedChoice = choiceData.choice.choices.find(c => c.id === selectedChoiceId);
+    
+    if (selectedChoice && selectedChoice.results) {
+      const resultImage = selectedChoice.results;
+      
+      // 1. files 배열에 결과 이미지를 현재 위치 다음에 삽입
+      const newFiles = [...files];
+      newFiles.splice(currentIndex + 1, 0, resultImage);
+      setFiles(newFiles);
+      
+      // 2. 새로 삽입된 이미지로 바로 이동
+      setCurrentIndex(currentIndex + 1);
+      
+    } else {
+      // 결과 이미지가 없는 경우, 그냥 다음으로 이동
+      nextFile();
+    }
+
+    // 3. 백그라운드에서 서버에 선택 결과 저장 (기존 로직 유지)
+    const choiceId = `choice_${choiceData.choiceIndex}`;
+    axios.post(`${API_BASE_URL}/api/save-choice`, {
+      choice_id: choiceId,
+      selected_id: selectedChoiceId,
+      choice_index: choiceData.choiceIndex
+    })
+    .then(response => {
+      if (response.data.cacheData) {
+        saveToBrowserCache(response.data.cacheData);
+        setChoiceAnswers(response.data.cacheData.userChoices.choices);
+      }
+      console.log('선택지 저장 완료 (백그라운드)');
+    })
+    .catch(error => {
+      console.error('선택지 저장 실패 (백그라운드):', error);
+    });
+  }, [files, nextFile, saveToBrowserCache]);
+
   // 퀴즈 답변 처리
-  const handleQuizAnswer = useCallback(async (answerIndex) => {
+  const handleQuizSubmit = useCallback(async (quizData, selectedOption) => {
     const nextQuiz = getNextQuiz();
     if (nextQuiz) {
       try {
         // 서버로 퀴즈 답변 저장
         await axios.post(`${API_BASE_URL}/api/save-quiz-answer`, {
           quiz_item: nextQuiz.quiz,
-          selected_option_index: answerIndex
+          selected_option_index: selectedOption
         });
         
         // 로컬 상태에도 저장
         setQuizAnswers(prev => ({
           ...prev,
-          [nextQuiz.quizIndex]: answerIndex
+          [nextQuiz.quizIndex]: selectedOption
         }));
         
         // 잠시 후 퀴즈 숨기고 다음으로 이동
@@ -361,7 +346,7 @@ function App() {
         // 저장 실패해도 로컬에는 저장하고 다음으로 이동
         setQuizAnswers(prev => ({
           ...prev,
-          [nextQuiz.quizIndex]: answerIndex
+          [nextQuiz.quizIndex]: selectedOption
         }));
         
         setTimeout(() => {
@@ -390,15 +375,18 @@ function App() {
   const minSwipeDistance = 50;
 
   const onTouchStart = (e) => {
+    if (showQuiz || showChoice) return;
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
   };
 
   const onTouchMove = (e) => {
+    if (showQuiz || showChoice) return;
     setTouchEnd(e.targetTouches[0].clientX);
   };
 
   const onTouchEnd = () => {
+    if (showQuiz || showChoice) return;
     if (!touchStart || !touchEnd) return;
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > minSwipeDistance;
@@ -415,22 +403,24 @@ function App() {
 
   // 마우스 드래그 기능
   const onMouseDown = (e) => {
+    if (showQuiz || showChoice) return;
     setMouseDown(true);
     setMouseEnd(null);
     setMouseStart(e.clientX);
   };
 
   const onMouseMove = (e) => {
+    if (showQuiz || showChoice) return;
     if (!mouseDown) return;
     setMouseEnd(e.clientX);
   };
 
   const onMouseUp = () => {
-    if (!mouseDown || !mouseStart || !mouseEnd) {
+    if (showQuiz || showChoice) return;
+    if (!mouseStart || !mouseEnd) {
       setMouseDown(false);
       return;
     }
-    
     const distance = mouseStart - mouseEnd;
     const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
@@ -442,31 +432,33 @@ function App() {
       setUserInteracted(true);
       prevFile();
     }
-    
     setMouseDown(false);
   };
 
   const onMouseLeave = () => {
-    setMouseDown(false);
+    if (showQuiz || showChoice) return;
+    if (mouseDown) {
+      onMouseUp();
+    }
   };
 
   // 키보드 이벤트 처리
   useEffect(() => {
     const handleKeyDown = (event) => {
+      if (showQuiz || showChoice) return;
+
       if (event.key === 'ArrowRight') {
-        setUserInteracted(true);
         nextFile();
       } else if (event.key === 'ArrowLeft') {
-        setUserInteracted(true);
         prevFile();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextFile, prevFile]);
-
-
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [nextFile, prevFile, showQuiz, showChoice]);
 
   // 퀴즈 팝업 렌더링
   const renderQuizPopup = (quizData, quizIndex) => {
@@ -481,7 +473,7 @@ function App() {
               <button
                 key={index}
                 className={`quiz-option ${selectedAnswer === index ? 'selected' : ''}`}
-                onClick={() => handleQuizAnswer(index)}
+                onClick={() => handleQuizSubmit(quizData, index)}
               >
                 {option}
               </button>
@@ -499,68 +491,37 @@ function App() {
 
   // 선택지 화면 렌더링
   const renderChoiceScreen = (choiceData, choiceIndex) => {
-    const backgroundUrl = `${API_BASE_URL}/static/${choiceData.background}`;
-    
+    const backgroundUrl = `${API_BASE_URL}/static/${safeEncodeURI(choiceData.background)}`;
+
+    const handleImageClick = (e, choice) => {
+      e.stopPropagation();
+      handleChoiceSelect({ choice: choiceData, choiceIndex }, choice.id);
+    };
+
     return (
       <div className="choice-screen">
-        {/* 질문 표시 */}
-        {choiceData.question && (
-          <div className="choice-question">
-            <h2>{choiceData.question}</h2>
-          </div>
-        )}
-        
-        {/* 배경 이미지 컨테이너 */}
-        <div className="choice-background-container">
-          <img 
-            src={backgroundUrl} 
-            alt="선택지 배경" 
-            className="choice-background"
-          />
-          
-          {/* 선택 가능한 이미지들 */}
+        <img src={backgroundUrl} alt="배경" className="choice-background" />
+        <h2 className="choice-question">{choiceData.question}</h2>
+        <div className="choice-container">
           {choiceData.choices.map((choice) => {
-            const choiceImageUrl = `${API_BASE_URL}/static/${choice.image}`;
+            const imageUrl = `${API_BASE_URL}/static/${safeEncodeURI(choice.image)}`;
+            const positionStyle = {
+              left: `${choice.position.x * 100}%`,
+              top: `${choice.position.y * 100}%`,
+              width: `${choice.size.width * 100}%`,
+              height: `${choice.size.height * 100}%`,
+              transform: 'translate(-50%, -50%)'
+            };
             
             return (
-              <button
+              <div
                 key={choice.id}
                 className="choice-item"
-                style={{
-                  position: 'absolute',
-                  left: `${choice.position.x * 100}%`,
-                  top: `${choice.position.y * 100}%`,
-                  width: `${choice.size.width * 100}%`,
-                  height: `${choice.size.height * 100}%`,
-                  transform: 'translate(-50%, -50%)',
-                  border: 'none',
-                  background: 'transparent',
-                  padding: 0,
-                  cursor: 'pointer',
-                  zIndex: 10
-                }}
-                onClick={() => handleChoiceSelect({ choiceIndex }, choice.id)}
+                style={positionStyle}
+                onClick={(e) => handleImageClick(e, choice)}
               >
-                <img 
-                  src={choiceImageUrl}
-                  alt={`선택지 ${choice.id}`}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    transition: 'transform 0.2s ease, filter 0.2s ease',
-                    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
-                  }}
-                  onMouseOver={(e) => {
-                    e.target.style.transform = 'scale(1.1)';
-                    e.target.style.filter = 'drop-shadow(0 6px 12px rgba(0,0,0,0.5)) brightness(1.1)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.target.style.transform = 'scale(1)';
-                    e.target.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))';
-                  }}
-                />
-              </button>
+                <img src={imageUrl} alt={`선택 ${choice.id}`} className="choice-image" />
+              </div>
             );
           })}
         </div>
@@ -568,55 +529,43 @@ function App() {
     );
   };
 
-  // 미디어 렌더링 (퀴즈는 팝업으로, 선택지는 전체 화면으로 별도 처리)
+  // 현재 콘텐츠 렌더링
   const renderContent = () => {
-    if (files.length === 0) return null;
+    if (loading) return <div className="loading-screen">
+      {preloading ? 
+        '🚀 모든 미디어 완전 로딩 중... 잠시만 기다려주세요!' : 
+        '파일 목록을 불러오는 중...'
+      }
+    </div>;
+    if (error) return <div className="error-screen">{error}</div>;
 
     const currentItem = files[currentIndex];
     
-    // 현재 아이템이 선택지인 경우
-    if (typeof currentItem === 'object' && currentItem.type === 'choice' && showChoice) {
-      const choiceData = getCurrentChoice();
-      if (choiceData) {
-        return renderChoiceScreen(choiceData.choice, choiceData.choiceIndex);
-      }
-    }
-    
-    // 현재 아이템이 퀴즈인 경우는 이전 이미지로 되돌아가야 함 (이론적으로 발생하지 않아야 함)
-    if (typeof currentItem === 'object' && currentItem.type === 'quiz') {
-      // 퀴즈는 팝업으로만 표시되어야 하므로, 이전 이미지 찾기
-      for (let i = currentIndex - 1; i >= 0; i--) {
-        const item = files[i];
-        if (typeof item === 'string') {
-          const fileUrl = `${API_BASE_URL}/static/${item}`;
-          const fileType = getFileType(item);
-          return renderMediaByType(item, fileUrl, fileType);
-        }
-      }
-      return <div className="no-files">표시할 이미지가 없습니다.</div>;
-    }
-
-    // choice 타입이지만 showChoice가 false인 경우도 이전 이미지 찾기
+    // choice 타입일 경우, 전용 렌더링 로직 실행
     if (typeof currentItem === 'object' && currentItem.type === 'choice') {
-      for (let i = currentIndex - 1; i >= 0; i--) {
-        const item = files[i];
-        if (typeof item === 'string') {
-          const fileUrl = `${API_BASE_URL}/static/${item}`;
-          const fileType = getFileType(item);
-          return renderMediaByType(item, fileUrl, fileType);
-        }
-      }
-      return <div className="no-files">표시할 이미지가 없습니다.</div>;
+      return renderChoiceScreen(currentItem, currentIndex);
     }
     
-    // 파일인 경우
-    const fileUrl = `${API_BASE_URL}/static/${currentItem}`;
-    const fileType = getFileType(currentItem);
-    return renderMediaByType(currentItem, fileUrl, fileType);
+    // 퀴즈 타입은 이전 이미지를 배경으로 사용해야 하므로, 팝업만 띄우고 배경은 일반 미디어로 렌더링
+    if (typeof currentItem === 'object' && currentItem.type === 'quiz') {
+      for (let i = currentIndex - 1; i >= 0; i--) {
+        const prevItem = files[i];
+        if (typeof prevItem === 'string') {
+          return renderMedia(prevItem);
+        }
+      }
+    }
+    
+    // 문자열(이미지/비디오) 또는 기타 객체 타입 렌더링
+    if (typeof currentItem === 'string') {
+      return renderMedia(currentItem);
+    }
+    
+    return <div className="loading-screen">콘텐츠를 표시할 수 없습니다.</div>;
   };
 
-  // 완전 프리로딩된 미디어 즉시 렌더링 (로딩 제로!)
-  const renderMediaByType = (fileName, fileUrl, fileType) => {
+  // 미디어 파일(이미지/비디오) 렌더링
+  const renderMedia = (fileName) => {
     const preloadedItem = preloadedMedia.get(fileName);
     
     // 프리로딩이 완료된 경우 즉시 표시, 아니면 로딩 메시지
@@ -629,7 +578,7 @@ function App() {
       );
     }
     
-    switch (fileType) {
+    switch (getFileType(fileName)) {
       case 'image':
         // 프리로딩된 이미지 요소 직접 복제해서 사용 (즉시 표시)
         const preloadedImg = preloadedItem.element;
@@ -653,7 +602,7 @@ function App() {
         // 프리로딩된 비디오 설정 사용
         return (
           <video 
-            src={fileUrl}
+            src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`}
             controls
             autoPlay={userInteracted}
             muted={userInteracted}
@@ -687,7 +636,7 @@ function App() {
           <div className="audio-container">
             <div className="audio-title">{fileName}</div>
             <audio 
-              src={fileUrl} 
+              src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} 
               controls
               className="audio-player"
               preload="auto"
@@ -700,48 +649,6 @@ function App() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="app">
-        <div className="loading">
-          <div className="loading-message">
-            {preloading ? 
-              '🚀 모든 미디어 완전 로딩 중... 잠시만 기다려주세요!' : 
-              '파일 목록을 불러오는 중...'
-            }
-          </div>
-          {preloading && (
-            <div className="preload-progress">
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill" 
-                  style={{ width: `${preloadProgress}%` }}
-                ></div>
-              </div>
-              <div className="progress-text">
-                {preloadProgress}% 완료
-              </div>
-              <div className="progress-subtitle">
-                {preloadProgress < 30 ? '💾 모든 이미지와 동영상을 메모리에 저장 중...' :
-                 preloadProgress < 70 ? '⚡ 거의 다 완료됐어요! 조금만 더...' :
-                 preloadProgress < 100 ? '🎯 마무리 중입니다... 곧 완료!' :
-                 '🎉 완료! 이제 페이지 넘길 때 즉시 표시됩니다!'}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="app">
-        <div className="error">{error}</div>
-      </div>
-    );
-  }
-
   if (files.length === 0) {
     return (
       <div className="app">
@@ -751,57 +658,62 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <div 
-        className="viewer-container"
-        ref={containerRef}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseLeave}
-      >
-        <div className="media-container">
-          {renderContent()}
-          {/* showQuiz 상태에 따라 퀴즈 팝업 표시 */}
-          {showQuiz && (() => {
-            const nextQuiz = getNextQuiz();
-            return nextQuiz ? renderQuizPopup(nextQuiz.quiz, nextQuiz.quizIndex) : null;
-          })()}
-        </div>
-        
-        <div className="controls">
-          <button 
-            onClick={prevFile}
-            className="nav-button prev-button"
-            disabled={files.length <= 1}
-          >
-            <span className="nav-icon">⟨</span>
-          </button>
-          
-          <div className="control-center">
-            <span className="swipe-hint">
-              {!userInteracted ? "클릭하거나 스와이프하여 동영상 자동재생을 활성화하세요" : "스와이프하여 이동하세요"}
-            </span>
-            <span className="file-counter">
-              {currentIndex + 1} / {files.length}
-            </span>
-          </div>
-          
-          <button 
-            onClick={nextFile}
-            className="nav-button next-button"
-            disabled={files.length <= 1}
-          >
-            <span className="nav-icon">⟩</span>
-          </button>
-        </div>
-        
-
+    <>
+    <style>{`
+      .popup-overlay {
+        background-color: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+      }
+    `}</style>
+    <div
+      className="app"
+      ref={containerRef}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className="media-container">
+        {renderContent()}
+        {/* showQuiz 상태에 따라 퀴즈 팝업 표시 */}
+        {showQuiz && (() => {
+          const nextQuiz = getNextQuiz();
+          return nextQuiz ? renderQuizPopup(nextQuiz.quiz, nextQuiz.quizIndex) : null;
+        })()}
       </div>
+      
+      <div className="controls">
+        <button 
+          onClick={prevFile}
+          className="nav-button prev-button"
+          disabled={files.length <= 1}
+        >
+          <span className="nav-icon">⟨</span>
+        </button>
+        
+        <div className="control-center">
+          <span className="swipe-hint">
+            {!userInteracted ? "클릭하거나 스와이프하여 동영상 자동재생을 활성화하세요" : "스와이프하여 이동하세요"}
+          </span>
+          <span className="file-counter">
+            {currentIndex + 1} / {files.length}
+          </span>
+        </div>
+        
+        <button 
+          onClick={nextFile}
+          className="nav-button next-button"
+          disabled={files.length <= 1}
+        >
+          <span className="nav-icon">⟩</span>
+        </button>
+      </div>
+      
     </div>
+    </>
   );
 }
 
