@@ -16,6 +16,37 @@
         "의문의 반도체 공장 속 다양한 문제를 해결하며 자신이 어떤 사람이었는지 떠올려보세요."
       ]
     },
+    {
+      "type": "choice",
+      "background": "8.png",
+      "question": "어떤 영역을 선택하시겠습니까?",
+      "choices": [
+        {
+          "id": "area1",
+          "image": "선택지1-1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.6
+          },
+          "size": {
+            "width": 0.3,
+            "height": 0.3
+          }
+        },
+        {
+          "id": "area2", 
+          "image": "1.png",
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "size": {
+            "width": 0.5,
+            "height": 0.5
+          }
+        }
+      ]
+    },
     "8.png",
     "9.mp4",
     "10.mp4",

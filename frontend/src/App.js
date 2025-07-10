@@ -19,6 +19,8 @@ function App() {
   const [mouseEnd, setMouseEnd] = useState(null);
   const [quizAnswers, setQuizAnswers] = useState({}); // 퀴즈 답변 저장
   const [showQuiz, setShowQuiz] = useState(false); // 퀴즈 팝업 표시 여부
+  const [choiceAnswers, setChoiceAnswers] = useState({}); // 선택지 답변 저장
+  const [showChoice, setShowChoice] = useState(false); // 선택지 화면 표시 여부
   const [userInteracted, setUserInteracted] = useState(false); // 사용자 상호작용 여부
   const containerRef = useRef(null);
 
@@ -158,10 +160,39 @@ function App() {
     loadFiles();
   }, [preloadMedia]);
 
-  // currentIndex가 변경될 때 퀴즈 팝업 숨기기
+  // 브라우저 캐시에서 선택지 결과 로드
+  useEffect(() => {
+    const loadCachedChoices = () => {
+      try {
+        const cachedData = localStorage.getItem('skSiltronChoices');
+        if (cachedData) {
+          const parsedData = JSON.parse(cachedData);
+          if (parsedData.userChoices && parsedData.userChoices.choices) {
+            setChoiceAnswers(parsedData.userChoices.choices);
+            console.log('캐시된 선택지 결과 로드:', parsedData.userChoices.choices);
+          }
+        }
+      } catch (error) {
+        console.error('캐시된 선택지 결과 로드 실패:', error);
+      }
+    };
+
+    loadCachedChoices();
+  }, []);
+
+  // currentIndex가 변경될 때 팝업 숨기기 및 choice 타입 확인
   useEffect(() => {
     setShowQuiz(false);
-  }, [currentIndex]);
+    setShowChoice(false);
+    
+    // 현재 아이템이 choice 타입인지 확인
+    if (files.length > 0 && currentIndex < files.length) {
+      const currentItem = files[currentIndex];
+      if (typeof currentItem === 'object' && currentItem.type === 'choice') {
+        setShowChoice(true);
+      }
+    }
+  }, [currentIndex, files]);
 
   // 다음 아이템이 퀴즈인지 확인 (팝업으로 표시할지 결정)
   const getNextQuiz = useCallback(() => {
@@ -173,14 +204,72 @@ function App() {
     return null;
   }, [files, currentIndex]);
 
+  // 현재 아이템이 선택지인지 확인
+  const getCurrentChoice = useCallback(() => {
+    if (files.length === 0 || currentIndex >= files.length) return null;
+    const currentItem = files[currentIndex];
+    if (typeof currentItem === 'object' && currentItem.type === 'choice') {
+      return { choice: currentItem, choiceIndex: currentIndex };
+    }
+    return null;
+  }, [files, currentIndex]);
+
+  // 선택지 결과를 브라우저에 캐싱
+  const saveToBrowserCache = useCallback((cacheData) => {
+    try {
+      localStorage.setItem('skSiltronChoices', JSON.stringify(cacheData));
+      console.log('브라우저 캐시에 저장 완료:', cacheData);
+    } catch (error) {
+      console.error('브라우저 캐시 저장 실패:', error);
+    }
+  }, []);
+
+  // 선택지 선택 처리
+  const handleChoiceSelect = useCallback(async (choiceData, selectedChoiceId) => {
+    try {
+      const choiceId = `choice_${choiceData.choiceIndex}`;
+      
+      // 백엔드에 저장
+      const response = await axios.post(`${API_BASE_URL}/api/save-choice`, {
+        choice_id: choiceId,
+        selected_id: selectedChoiceId,
+        choice_index: choiceData.choiceIndex
+      });
+
+      // 브라우저 캐시에 저장
+      if (response.data.cacheData) {
+        saveToBrowserCache(response.data.cacheData);
+        setChoiceAnswers(response.data.cacheData.userChoices.choices);
+      }
+
+      console.log('선택지 저장 완료:', response.data);
+      
+      // 다음 화면으로 이동
+      setShowChoice(false);
+      setCurrentIndex((prevIndex) => {
+        let nextIndex = prevIndex + 1;
+        return nextIndex < files.length ? nextIndex : prevIndex;
+      });
+      
+    } catch (error) {
+      console.error('선택지 저장 실패:', error);
+      // 실패해도 다음으로 진행
+      setShowChoice(false);
+      setCurrentIndex((prevIndex) => {
+        let nextIndex = prevIndex + 1;
+        return nextIndex < files.length ? nextIndex : prevIndex;
+      });
+    }
+  }, [saveToBrowserCache, files.length]);
+
   // 다음 파일로 이동
   const nextFile = useCallback(() => {
     // 사용자 상호작용 기록
     setUserInteracted(true);
     
     if (files.length > 0) {
-      // 현재 퀴즈가 표시된 상태라면 더 이상 진행하지 않음
-      if (showQuiz) {
+      // 현재 퀴즈나 선택지가 표시된 상태라면 더 이상 진행하지 않음
+      if (showQuiz || showChoice) {
         return;
       }
       
@@ -195,10 +284,10 @@ function App() {
       setCurrentIndex((prevIndex) => {
         let nextIndex = prevIndex + 1;
         
-        // 다음 아이템이 퀴즈라면 건너뛰기
+        // 다음 아이템이 퀴즈나 선택지라면 건너뛰기
         if (nextIndex < files.length) {
           const nextItem = files[nextIndex];
-          if (typeof nextItem === 'object' && nextItem.type === 'quiz') {
+          if (typeof nextItem === 'object' && (nextItem.type === 'quiz' || nextItem.type === 'choice')) {
             nextIndex = nextIndex + 1;
           }
         }
@@ -206,7 +295,7 @@ function App() {
         return nextIndex < files.length ? nextIndex : prevIndex;
       });
     }
-  }, [files, getNextQuiz, quizAnswers, showQuiz]);
+  }, [files, getNextQuiz, quizAnswers, showQuiz, showChoice]);
 
   // 이전 파일로 이동
   const prevFile = useCallback(() => {
@@ -217,10 +306,10 @@ function App() {
       setCurrentIndex((prevIndex) => {
         let newIndex = prevIndex - 1;
         
-        // 이전 아이템이 퀴즈라면 건너뛰기
+        // 이전 아이템이 퀴즈나 선택지라면 건너뛰기
         if (newIndex >= 0) {
           const prevItem = files[newIndex];
-          if (typeof prevItem === 'object' && prevItem.type === 'quiz') {
+          if (typeof prevItem === 'object' && (prevItem.type === 'quiz' || prevItem.type === 'choice')) {
             newIndex = newIndex - 1;
           }
         }
@@ -408,15 +497,107 @@ function App() {
     );
   };
 
-  // 미디어 렌더링 (퀴즈는 팝업으로 별도 처리)
+  // 선택지 화면 렌더링
+  const renderChoiceScreen = (choiceData, choiceIndex) => {
+    const backgroundUrl = `${API_BASE_URL}/static/${choiceData.background}`;
+    
+    return (
+      <div className="choice-screen">
+        {/* 질문 표시 */}
+        {choiceData.question && (
+          <div className="choice-question">
+            <h2>{choiceData.question}</h2>
+          </div>
+        )}
+        
+        {/* 배경 이미지 컨테이너 */}
+        <div className="choice-background-container">
+          <img 
+            src={backgroundUrl} 
+            alt="선택지 배경" 
+            className="choice-background"
+          />
+          
+          {/* 선택 가능한 이미지들 */}
+          {choiceData.choices.map((choice) => {
+            const choiceImageUrl = `${API_BASE_URL}/static/${choice.image}`;
+            
+            return (
+              <button
+                key={choice.id}
+                className="choice-item"
+                style={{
+                  position: 'absolute',
+                  left: `${choice.position.x * 100}%`,
+                  top: `${choice.position.y * 100}%`,
+                  width: `${choice.size.width * 100}%`,
+                  height: `${choice.size.height * 100}%`,
+                  transform: 'translate(-50%, -50%)',
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  cursor: 'pointer',
+                  zIndex: 10
+                }}
+                onClick={() => handleChoiceSelect({ choiceIndex }, choice.id)}
+              >
+                <img 
+                  src={choiceImageUrl}
+                  alt={`선택지 ${choice.id}`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    transition: 'transform 0.2s ease, filter 0.2s ease',
+                    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.transform = 'scale(1.1)';
+                    e.target.style.filter = 'drop-shadow(0 6px 12px rgba(0,0,0,0.5)) brightness(1.1)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.transform = 'scale(1)';
+                    e.target.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))';
+                  }}
+                />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // 미디어 렌더링 (퀴즈는 팝업으로, 선택지는 전체 화면으로 별도 처리)
   const renderContent = () => {
     if (files.length === 0) return null;
 
     const currentItem = files[currentIndex];
     
+    // 현재 아이템이 선택지인 경우
+    if (typeof currentItem === 'object' && currentItem.type === 'choice' && showChoice) {
+      const choiceData = getCurrentChoice();
+      if (choiceData) {
+        return renderChoiceScreen(choiceData.choice, choiceData.choiceIndex);
+      }
+    }
+    
     // 현재 아이템이 퀴즈인 경우는 이전 이미지로 되돌아가야 함 (이론적으로 발생하지 않아야 함)
     if (typeof currentItem === 'object' && currentItem.type === 'quiz') {
       // 퀴즈는 팝업으로만 표시되어야 하므로, 이전 이미지 찾기
+      for (let i = currentIndex - 1; i >= 0; i--) {
+        const item = files[i];
+        if (typeof item === 'string') {
+          const fileUrl = `${API_BASE_URL}/static/${item}`;
+          const fileType = getFileType(item);
+          return renderMediaByType(item, fileUrl, fileType);
+        }
+      }
+      return <div className="no-files">표시할 이미지가 없습니다.</div>;
+    }
+
+    // choice 타입이지만 showChoice가 false인 경우도 이전 이미지 찾기
+    if (typeof currentItem === 'object' && currentItem.type === 'choice') {
       for (let i = currentIndex - 1; i >= 0; i--) {
         const item = files[i];
         if (typeof item === 'string') {

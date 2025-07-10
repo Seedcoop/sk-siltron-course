@@ -91,14 +91,14 @@ async def get_files():
                     order_data = json.load(f)
                     defined_order = order_data.get('order', [])
                 
-                # JSON에 정의된 순서대로 아이템 추가 (파일 또는 퀴즈 객체)
+                # JSON에 정의된 순서대로 아이템 추가 (파일, 퀴즈 또는 선택지 객체)
                 for item in defined_order:
                     if isinstance(item, str):
                         # 파일인 경우: 실제 존재하는 파일만 추가
                         if item in available_files:
                             ordered_files.append(item)
-                    elif isinstance(item, dict) and item.get('type') == 'quiz':
-                        # 퀴즈 객체인 경우: 그대로 추가
+                    elif isinstance(item, dict) and item.get('type') in ['quiz', 'choice']:
+                        # 퀴즈 또는 선택지 객체인 경우: 그대로 추가
                         ordered_files.append(item)
                 
                 # JSON에 정의된 아이템들만 표시 (나머지 파일들은 무시)
@@ -318,6 +318,79 @@ async def save_quiz_answer(answer_data: dict):
         return {"message": "퀴즈 답변이 저장되었습니다", "result": result_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"퀴즈 답변 저장에 실패했습니다: {str(e)}")
+
+@app.get("/api/choice-results")
+async def get_choice_results():
+    """선택지 결과를 반환"""
+    results_file = CONTENTS_DIR / "choice_results.json"
+    
+    if results_file.exists():
+        try:
+            with open(results_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {"choices": []}
+    else:
+        return {"choices": []}
+
+@app.post("/api/save-choice")
+async def save_choice(choice_data: dict):
+    """선택지 결과를 저장하고 브라우저 캐싱용 데이터도 반환"""
+    try:
+        choice_id = choice_data.get('choice_id')
+        selected_id = choice_data.get('selected_id')
+        choice_index = choice_data.get('choice_index')
+        
+        if not choice_id or not selected_id:
+            raise HTTPException(status_code=400, detail="choice_id와 selected_id가 필요합니다")
+        
+        # 저장할 결과 데이터
+        result_data = {
+            "choice_id": choice_id,
+            "selected_id": selected_id,
+            "choice_index": choice_index,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # 기존 결과 불러오기
+        results_file = CONTENTS_DIR / "choice_results.json"
+        if results_file.exists():
+            try:
+                with open(results_file, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+            except json.JSONDecodeError:
+                existing_data = {"choices": []}
+        else:
+            existing_data = {"choices": []}
+        
+        if "choices" not in existing_data:
+            existing_data["choices"] = []
+        
+        # 동일한 choice_id의 기존 선택 제거 (덮어쓰기)
+        existing_data["choices"] = [c for c in existing_data["choices"] if c.get("choice_id") != choice_id]
+        
+        # 새 결과 추가
+        existing_data["choices"].append(result_data)
+        
+        # 파일에 저장
+        with open(results_file, 'w', encoding='utf-8') as f:
+            json.dump(existing_data, f, ensure_ascii=False, indent=2)
+        
+        # 브라우저 캐싱용 데이터 생성
+        cache_data = {
+            "userChoices": {
+                "timestamp": datetime.now().isoformat(),
+                "choices": {item["choice_id"]: item["selected_id"] for item in existing_data["choices"]}
+            }
+        }
+        
+        return {
+            "message": "선택지 결과가 저장되었습니다", 
+            "result": result_data,
+            "cacheData": cache_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"선택지 저장에 실패했습니다: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
