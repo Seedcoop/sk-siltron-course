@@ -1,0 +1,75 @@
+config:
+  target: 'https://sk-siltron-course-production.up.railway.app'
+  phases:
+    # 워밍업 (10초간 점진적 증가)
+    - duration: 10
+      arrivalRate: 5
+      name: "Warm up - 50 users"
+    
+    # 중간 부하 (30초간 100명)
+    - duration: 30
+      arrivalRate: 10
+      name: "Medium load - 300 users"
+    
+    # 메인 테스트 (60초간 500명 동시!)
+    - duration: 60
+      arrivalRate: 50
+      name: "🔥 PEAK LOAD - 500 concurrent users"
+    
+    # 최대 부하 (30초간 800명)
+    - duration: 30
+      arrivalRate: 80  
+      name: "💥 EXTREME LOAD - 800+ users"
+
+  http:
+    timeout: 30000
+    pool: 100
+
+# 실제 사용자 행동 패턴 시뮬레이션
+scenarios:
+  - name: "일반 사용자 (70%)"
+    weight: 70
+    flow:
+      - get:
+          url: "/"
+      - get:
+          url: "/api/files"
+      - get:
+          url: "/static/{{ $randomInt(0, 8) }}.png"
+      - get:
+          url: "/health"
+      - think: "{{ $randomInt(2, 5) }}"
+
+  - name: "프리로딩 사용자 (20%) - 미디어 많이 로딩"
+    weight: 20
+    flow:
+      - get:
+          url: "/"
+      - get:
+          url: "/api/files"
+      - get:
+          url: "/static/0.png"
+      - get:
+          url: "/static/1.png"
+      - get:
+          url: "/static/2.png"
+      - get:
+          url: "/static/3.png"
+      - get:
+          url: "/static/9.mp4"
+      - get:
+          url: "/static/10.mp4"
+      - think: 3
+
+  - name: "API 집중 사용자 (10%)"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/files"
+      - get:
+          url: "/api/quiz/1"
+      - get:
+          url: "/api/quiz/2" 
+      - get:
+          url: "/health"
+      - think: 1

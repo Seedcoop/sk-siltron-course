@@ -1,4 +1,54 @@
 {
+  "soundSections": [
+    {
+      "type": "sound_section",
+      "sound": "배경음악1.webm",
+      "start": 1,
+      "end": 8
+    },
+    {
+      "type": "sound_section", 
+      "sound": "팹.webm",
+      "start": 9,
+      "end": 13
+    },
+    {
+      "type": "sound_section",
+      "sound": "상황실.webm", 
+      "start": 14,
+      "end": 18
+    },
+    {
+      "type": "sound_section",
+      "sound": "홍보실.webm",
+      "start": 19,
+      "end": 23
+    },
+    {
+      "type": "sound_section",
+      "sound": "QC.webm",
+      "start": 24,
+      "end": 28
+    },
+    {
+      "type": "sound_section",
+      "sound": "연구실.webm",
+      "start": 29,
+      "end": 33
+    },
+    {
+      "type": "sound_section",
+      "sound": "공정기술실.webm",
+      "start": 34,
+      "end": 38
+    },
+    {
+      "type": "sound_section",
+      "sound": "배경음악2.webm",
+      "start": 39,
+      "end": -1
+    }
+  ],
   "order": [
     "0.png",
     "1.png",
@@ -8,47 +58,6 @@
     "5.png",
     "6.png",
     "7.png",
-    {
-      "type": "quiz",
-      "question": "홀란스러운 와중에 저기 누군가 여러분을 부르는 것 같아요.\n우선 같이 살펴볼까요?",
-      "options": [
-        "진로 성향 검사를 통해 나의 특성을 이해하고 반도체 산업과 관련된 직업을 알아볼 수 있습니다.",
-        "의문의 반도체 공장 속 다양한 문제를 해결하며 자신이 어떤 사람이었는지 떠올려보세요."
-      ]
-    },
-    {
-      "type": "choice",
-      "background": "8.png",
-      "question": "어떤 영역을 선택하시겠습니까?",
-      "choices": [
-        {
-          "id": "fap",
-          "image": "choices/선택지1-1.webp",
-          "position": {
-            "x": 0.35,
-            "y": 0.65
-          },
-          "size": {
-            "width": 0.3,
-            "height": 0.3
-          },
-          "results": "4.png"
-        },
-        {
-          "id": "emergency", 
-          "image": "choices/선택지1-1.webp",
-          "position": {
-            "x": 0.65,
-            "y": 0.65
-          },
-          "size": {
-            "width": 0.3,
-            "height": 0.3
-          },
-          "results": "5.png"
-        }
-      ]
-    },
     "8.png",
     "9.mp4",
     "10.mp4",
@@ -57,27 +66,271 @@
     "fap/팹1.webm",
     "fap/팹2.webm",
     "fap/슬라이드10.png",
-    "fap/슬라이드11.png",
+    {
+      "type": "choice",
+      "background": "fap/팹배경.webp",
+      "question": "당신은 ... ",
+      "choices": [
+        {
+          "id": "eye",
+          "image": "fap/팹1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "fap/팹_눈.webp"
+        },
+        {
+          "id": "book", 
+          "image": "fap/팹2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "fap/팹_책.webp"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
     "emergency/상황실1.webm",
     "emergency/상황실2.webm",
     "emergency/슬라이드12.png",
-    "emergency/슬라이드13.png",
+    {
+      "type": "choice",
+      "background": "emergency/상황실배경.webp",
+      "question": "당신은 ... ",
+      "choices": [
+        {
+          "id": "eye",
+          "image": "emergency/상황실1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "emergency/상황실_눈.webp"
+        },
+        {
+          "id": "note", 
+          "image": "emergency/상황실2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "emergency/상황실_노트.webp"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+
     "promote/홍보실1.webm",
     "promote/홍보실2.webm",
     "promote/슬라이드14.png",
-    "promote/슬라이드15.png",
+    {
+      "type": "choice",
+      "background": "promote/홍보실배경.webp",
+      "question": "당신은 ... ",
+      "choices": [
+        {
+          "id": "hands",
+          "image": "promote/홍보실1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "promote/홍보실_악수.webp"
+        },
+        {
+          "id": "pallete", 
+          "image": "promote/홍보실2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "promote/홍보실_팔레트.webp"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+
     "QC/QC1.webm",
     "QC/QC2.webm",
     "QC/슬라이드16.png",
-    "QC/슬라이드17.png",
+    {
+      "type": "choice",
+      "background": "QC/QC배경.webp",
+      "question": "당신은 ... ",
+      "choices": [
+        {
+          "id": "book",
+          "image": "QC/QC1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "QC/QC_책.webp"
+        },
+        {
+          "id": "hammer", 
+          "image": "QC/QC1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "QC/QC_망치.webp"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+
     "research/연구실1.webm",
     "research/연구실2.webm",
     "research/슬라이드18.png",
-    "research/슬라이드19.png",
+    {
+      "type": "choice",
+      "background": "research/연구실배경.webp",
+      "question": "당신은 ... ",
+      "choices": [
+        {
+          "id": "note",
+          "image": "research/연구실1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "research/연구실_노트.webp"
+        },
+        {
+          "id": "pallete", 
+          "image": "research/연구실2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "research/연구실_팔레트.webp"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+
     "tech/공정기술실1.webm",
     "tech/공정기술실2.webm",
     "tech/슬라이드20.png",
-    "tech/슬라이드21.png",
-    "슬라이드22.png"
+    {
+      "type": "choice",
+      "background": "tech/공정기술실배경.webp",
+      "question": "당신은 ... ",
+      "choices": [
+        {
+          "id": "hammer",
+          "image": "tech/공정기술실1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "tech/공정기술실_망치.webp"
+        },
+        {
+          "id": "hands", 
+          "image": "tech/공정기술실2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "size": {
+            "width": 0.45,
+            "height": 0.45
+          },
+          "results": "tech/공정기술실_악수.webp"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+
+    "슬라이드22.png",
+    {
+      "type": "choice_summary",
+      "title": "당신이 선택한 아이템들",
+      "description": "여정을 통해 수집한 소중한 아이템들입니다."
+    }
   ]
 }
