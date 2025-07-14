@@ -871,11 +871,19 @@ function App() {
     );
   }, [currentIndex, files, preloadedMedia, preloadSingleMedia, currentChoiceIndex, playClickSound]);
 
-  // 단순화된 이미지 컴포넌트 (모바일에서 Progressive Loading 완전 비활성화)
+  // 단순화된 이미지 컴포넌트 (Hook 규칙 준수)
   const SimpleImage = ({ fileName }) => {
     const preloadedItem = preloadedMedia.get(fileName);
+    const progressiveData = progressiveImages.get(fileName);
     
-    // 모바일에서는 직접 로딩 (Progressive Loading 제외)
+    // Hook은 항상 같은 순서로 호출되어야 함
+    useEffect(() => {
+      if (!isMobile && getFileType(fileName) === 'image' && !progressiveImages.has(fileName)) {
+        startProgressiveLoading(fileName);
+      }
+    }, [fileName, startProgressiveLoading, isMobile]);
+    
+    // 모바일에서는 직접 로딩
     if (isMobile) {
       if (preloadedItem && preloadedItem.preloaded) {
         return (
@@ -888,7 +896,6 @@ function App() {
         );
       }
       
-      // 프리로드되지 않은 경우 직접 로딩
       return (
         <img 
           src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`}
@@ -899,15 +906,7 @@ function App() {
       );
     }
 
-    // 데스크톱에서만 Progressive Loading 사용
-    const progressiveData = progressiveImages.get(fileName);
-    
-    useEffect(() => {
-      if (getFileType(fileName) === 'image' && !progressiveImages.has(fileName)) {
-        startProgressiveLoading(fileName);
-      }
-    }, [fileName, startProgressiveLoading]);
-
+    // 데스크톱 Progressive Loading
     if (preloadedItem && preloadedItem.preloaded) {
       return (
         <img 
@@ -976,8 +975,21 @@ function App() {
       }
     }
     
-    // 데스크톱에서만 프리로딩 시스템 사용
+    // 데스크톱 이미지 처리
     if (!isMobile && fileType === 'image') {
+      const preloadedItem = preloadedMedia.get(fileName);
+      
+      if (preloadedItem && preloadedItem.preloaded) {
+        return (
+          <img 
+            src={preloadedItem.element.src} 
+            alt={fileName} 
+            className="media-content"
+          />
+        );
+      }
+      
+      // Progressive Loading 사용
       return <SimpleImage fileName={fileName} />;
     }
     
