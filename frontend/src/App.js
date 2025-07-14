@@ -311,9 +311,17 @@ function App() {
       setSoundSections(orderResponse.data.soundSections || []);
       const mediaFiles = filesResponse.data.filter(item => typeof item === 'string' && getFileType(item) !== 'unknown');
       if (mediaFiles.length > 0) {
-        // 모바일에서는 초기 로딩 제한
-        const initialFiles = isMobile ? mediaFiles.slice(0, 5) : mediaFiles;
-        await preloadMedia(initialFiles);
+        // 모바일에서는 이미지만 초기 로딩 (비디오 제외)
+        if (isMobile) {
+          const imageFiles = mediaFiles.filter(file => getFileType(file) === 'image').slice(0, 8);
+          if (imageFiles.length > 0) {
+            await preloadMedia(imageFiles);
+          }
+          // 모바일에서는 이미지 프리로딩 후 즉시 완료 체크
+          setInitialLoadComplete(true);
+        } else {
+          await preloadMedia(mediaFiles);
+        }
       }
       setError(null);
     } catch (err) {
@@ -935,30 +943,48 @@ function App() {
   const renderMedia = useCallback((fileName) => {
     const fileType = getFileType(fileName);
     
-    // 모바일에서 이미지는 직접 렌더링 (로딩 메시지 없이)
-    if (isMobile && fileType === 'image') {
-      return (
-        <img 
-          src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`}
-          alt={fileName} 
-          className="media-content"
-          style={{ opacity: 1, transition: 'none' }}
-        />
-      );
+    // 모바일에서는 모든 미디어를 직접 렌더링 (프리로딩 상태 무시)
+    if (isMobile) {
+      if (fileType === 'image') {
+        return (
+          <img 
+            src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`}
+            alt={fileName} 
+            className="media-content"
+            style={{ opacity: 1, transition: 'none' }}
+          />
+        );
+      }
+      
+      if (fileType === 'video') {
+        return (
+          <video 
+            src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`}
+            controls 
+            autoPlay={userInteracted} 
+            muted={userInteracted} 
+            loop 
+            className="media-content" 
+            style={{ opacity: 1, transition: 'none' }}
+            onClick={(e) => { 
+              e.target.muted = false; 
+              setUserInteracted(true);
+              if (e.target.paused) e.target.play().catch(console.error); 
+            }}
+          />
+        );
+      }
     }
     
-    // 데스크톱 이미지는 SimpleImage 사용
+    // 데스크톱에서만 프리로딩 시스템 사용
     if (!isMobile && fileType === 'image') {
       return <SimpleImage fileName={fileName} />;
     }
     
-    // 비디오 처리
+    // 데스크톱 비디오 처리
     const videoPreloadedItem = preloadedMedia.get(fileName);
     
     if (!videoPreloadedItem || !videoPreloadedItem.preloaded) {
-      if (isMobile && !initialLoadComplete) {
-        return <div className="media-loading"><div className="loading-spinner">⏳</div><div>로딩 중...</div></div>;
-      }
       return <div className="media-loading"><div className="loading-spinner">⏳</div><div>미디어 준비 중...</div></div>;
     }
     
