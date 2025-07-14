@@ -935,12 +935,24 @@ function App() {
   const renderMedia = useCallback((fileName) => {
     const fileType = getFileType(fileName);
     
-    // 이미지는 SimpleImage 컴포넌트 사용
-    if (fileType === 'image') {
+    // 모바일에서 이미지는 직접 렌더링 (로딩 메시지 없이)
+    if (isMobile && fileType === 'image') {
+      return (
+        <img 
+          src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`}
+          alt={fileName} 
+          className="media-content"
+          style={{ opacity: 1, transition: 'none' }}
+        />
+      );
+    }
+    
+    // 데스크톱 이미지는 SimpleImage 사용
+    if (!isMobile && fileType === 'image') {
       return <SimpleImage fileName={fileName} />;
     }
     
-    // 비디오는 기존 로직 유지
+    // 비디오 처리
     const videoPreloadedItem = preloadedMedia.get(fileName);
     
     if (!videoPreloadedItem || !videoPreloadedItem.preloaded) {
@@ -949,7 +961,6 @@ function App() {
       }
       return <div className="media-loading"><div className="loading-spinner">⏳</div><div>미디어 준비 중...</div></div>;
     }
-    // 비디오 처리
     
     if (fileType === 'video') {
       return (
@@ -973,7 +984,7 @@ function App() {
     }
     
     return <div className="unsupported">지원하지 않는 파일 형식입니다.</div>;
-  }, [preloadedMedia, getFileType, safeEncodeURI, userInteracted, isMobile, initialLoadComplete]);
+  }, [preloadedMedia, getFileType, safeEncodeURI, userInteracted, isMobile, initialLoadComplete, API_BASE_URL]);
 
   // 선택된 아이템 정리
   const getSelectedChoices = useCallback(() => {
