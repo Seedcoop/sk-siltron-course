@@ -385,12 +385,11 @@ function App() {
     }
   }, [currentIndex, audioInitialized, playBackgroundSound]);
 
-  // 모바일 최적화 스마트 프리로딩
+  // 모바일에서는 스마트 프리로딩 비활성화
   const smartPreload = useCallback((index) => {
-    if (!files.length) return;
+    if (!files.length || isMobile) return; // 모바일에서는 완전 비활성화
 
-    // 모바일에서는 더 적은 범위 프리로딩
-    const preloadRange = isMobile ? 1 : 3;
+    const preloadRange = 3;
     const startIndex = Math.max(0, index - 1);
     const endIndex = Math.min(files.length, index + preloadRange + 1);
     
@@ -400,11 +399,8 @@ function App() {
       const file = files[i];
       if (typeof file === 'string' && !preloadedMedia.has(file)) {
         const fileType = getFileType(file);
-        // 모바일에서는 이미지만 프리로딩
-        if (!isMobile || fileType === 'image') {
-          if (fileType === 'image' || fileType === 'video') {
-            mediaToPreload.push(file);
-          }
+        if (fileType === 'image' || fileType === 'video') {
+          mediaToPreload.push(file);
         }
       }
     }
@@ -485,8 +481,8 @@ function App() {
         }
       } else {
         console.log('Regular file:', currentItem);
-        // 현재 파일이 미디어 파일이고 로딩되지 않았다면 즉시 preload
-        if (typeof currentItem === 'string' && !preloadedMedia.has(currentItem)) {
+        // 모바일에서는 즉시 preload 비활성화 (깜빡임 방지)
+        if (!isMobile && typeof currentItem === 'string' && !preloadedMedia.has(currentItem)) {
           console.log('Current file not preloaded, loading now:', currentItem);
           preloadMedia([currentItem]).then(() => {
             console.log('Current file loaded successfully:', currentItem);
@@ -867,27 +863,49 @@ function App() {
     );
   }, [currentIndex, files, preloadedMedia, preloadSingleMedia, currentChoiceIndex, playClickSound]);
 
-  // Progressive Loading을 위한 이미지 컴포넌트
-  const ProgressiveImage = ({ fileName }) => {
-    const progressiveData = progressiveImages.get(fileName);
+  // 단순화된 이미지 컴포넌트 (모바일에서 Progressive Loading 완전 비활성화)
+  const SimpleImage = ({ fileName }) => {
+    const preloadedItem = preloadedMedia.get(fileName);
+    
+    // 모바일에서는 직접 로딩 (Progressive Loading 제외)
+    if (isMobile) {
+      if (preloadedItem && preloadedItem.preloaded) {
+        return (
+          <img 
+            src={preloadedItem.element.src} 
+            alt={fileName} 
+            className="media-content"
+            style={{ opacity: 1, transition: 'none' }}
+          />
+        );
+      }
+      
+      // 프리로드되지 않은 경우 직접 로딩
+      return (
+        <img 
+          src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`}
+          alt={fileName} 
+          className="media-content"
+          style={{ opacity: 1, transition: 'none' }}
+        />
+      );
+    }
 
-    // 컴포넌트가 마운트될 때 Progressive Loading 시작
+    // 데스크톱에서만 Progressive Loading 사용
+    const progressiveData = progressiveImages.get(fileName);
+    
     useEffect(() => {
       if (getFileType(fileName) === 'image' && !progressiveImages.has(fileName)) {
-        console.log(`🔄 Starting progressive loading for: ${fileName}`);
         startProgressiveLoading(fileName);
       }
     }, [fileName, startProgressiveLoading]);
 
-    // 모바일에서는 preloaded 이미지 우선 사용
-    const preloadedItem = preloadedMedia.get(fileName);
-    if (isMobile && preloadedItem && preloadedItem.preloaded) {
+    if (preloadedItem && preloadedItem.preloaded) {
       return (
         <img 
           src={preloadedItem.element.src} 
           alt={fileName} 
           className="media-content"
-          onLoad={() => console.log(`✅ Preloaded image displayed: ${fileName}`)}
         />
       );
     }
@@ -908,32 +926,35 @@ function App() {
         className="media-content"
         style={{
           filter: progressiveData.isThumb ? 'blur(0.5px)' : 'none',
-          transition: isMobile ? 'none' : 'filter 0.3s ease'
+          transition: 'filter 0.3s ease'
         }}
-        onLoad={() => console.log(`✅ Progressive image loaded: ${fileName}`)}
       />
     );
   };
 
   const renderMedia = useCallback((fileName) => {
-    const preloadedItem = preloadedMedia.get(fileName);
+    const fileType = getFileType(fileName);
     
-    // 모바일에서는 초기 로딩 완료 후에만 로딩 메시지 표시
-    if (!preloadedItem || !preloadedItem.preloaded) {
+    // 이미지는 SimpleImage 컴포넌트 사용
+    if (fileType === 'image') {
+      return <SimpleImage fileName={fileName} />;
+    }
+    
+    // 비디오는 기존 로직 유지
+    const videoPreloadedItem = preloadedMedia.get(fileName);
+    
+    if (!videoPreloadedItem || !videoPreloadedItem.preloaded) {
       if (isMobile && !initialLoadComplete) {
         return <div className="media-loading"><div className="loading-spinner">⏳</div><div>로딩 중...</div></div>;
       }
       return <div className="media-loading"><div className="loading-spinner">⏳</div><div>미디어 준비 중...</div></div>;
     }
-    const fileType = getFileType(fileName);
-    if (fileType === 'image') {
-      return <img src={preloadedItem.element.src} alt={fileName} className="media-content" />;
-    }
+    // 비디오 처리
     
     if (fileType === 'video') {
       return (
         <video 
-          src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} 
+          src={videoPreloadedItem.url || `${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} 
           controls 
           autoPlay={userInteracted} 
           muted={userInteracted} 
