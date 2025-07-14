@@ -556,6 +556,12 @@ function App() {
     
     setCurrentChoiceIndex(currentIndex); // choice 위치 저장
     
+    // 즉시 choiceAnswers 상태 업데이트 (UI 반응성 향상)
+    setChoiceAnswers(prev => ({
+      ...prev,
+      [selectedChoiceId]: selectedChoiceId  // 선택된 ID를 키와 값으로 저장
+    }));
+    
     const selectedChoice = choiceData.choices.find(c => c.id === selectedChoiceId);
     console.log('Selected choice object:', selectedChoice);
     
@@ -608,16 +614,19 @@ function App() {
         setCurrentIndex(prev => (prev < files.length - 1 ? prev + 1 : prev));
       }
     }
-    const choiceId = `choice_${choiceData.choiceIndex}`;
+    
+    // 백그라운드에서 서버에 저장
+    const choiceId = `choice_${currentIndex}`;  // 현재 인덱스를 사용
     axios.post(`${API_BASE_URL}/api/save-choice`, {
       choice_id: choiceId,
       selected_id: selectedChoiceId,
-      choice_index: choiceData.choiceIndex
+      choice_index: currentIndex
     })
     .then(response => {
       if (response.data.cacheData) {
         saveToBrowserCache(response.data.cacheData);
-        setChoiceAnswers(response.data.cacheData.userChoices.choices);
+        // 서버 응답으로 상태 재동기화
+        console.log('Server response choices:', response.data.cacheData.userChoices.choices);
       }
       console.log('선택지 저장 완료 (백그라운드)');
     })
@@ -747,16 +756,47 @@ function App() {
   const renderChoiceScreen = (choiceData, choiceIndex) => {
     const backgroundUrl = `${API_BASE_URL}/static/${safeEncodeURI(choiceData.background)}`;
     
-    // 정사각형 배경에 대한 상대적 크기 계산 (화면 비율 무관)
-    const calculateResponsiveSize = (size) => {
-      // 화면의 최소 치수를 기준으로 계산 (정사각형 기준)
+    // 정사각형 배경에 대한 상대적 크기와 위치 계산 (화면 비율 무관)
+    const calculateResponsiveProperties = (position, size) => {
+      // 화면의 최소 치수를 기준으로 정사각형 영역 계산
       const minDimension = Math.min(windowDimensions.width, windowDimensions.height);
-      // 모바일에서는 약간 더 크게 (터치하기 쉽게)
+      const maxDimension = Math.max(windowDimensions.width, windowDimensions.height);
+      
+      // 정사각형 배경이 화면에 맞춰지는 방식 계산
+      let squareSize, offsetX, offsetY;
+      
+      if (windowDimensions.width > windowDimensions.height) {
+        // 가로가 더 긴 경우 (PC 일반적)
+        squareSize = windowDimensions.height;
+        offsetX = (windowDimensions.width - squareSize) / 2;
+        offsetY = 0;
+      } else {
+        // 세로가 더 긴 경우 (모바일 일반적)
+        squareSize = windowDimensions.width;
+        offsetX = 0;
+        offsetY = (windowDimensions.height - squareSize) / 2;
+      }
+      
+      // 모바일에서는 터치하기 쉽게 약간 더 크게
       const scaleFactor = isMobile ? 1.2 : 1.0;
       
+      // 정사각형 영역 내에서의 절대 위치 계산
+      const absoluteX = offsetX + (position.x * squareSize);
+      const absoluteY = offsetY + (position.y * squareSize);
+      
+      // 크기 계산
+      const elementWidth = size.width * squareSize * scaleFactor;
+      const elementHeight = size.height * squareSize * scaleFactor;
+      
       return {
-        width: `${size.width * minDimension * scaleFactor}px`,
-        height: `${size.height * minDimension * scaleFactor}px`
+        position: {
+          left: `${absoluteX}px`,
+          top: `${absoluteY}px`
+        },
+        size: {
+          width: `${elementWidth}px`,
+          height: `${elementHeight}px`
+        }
       };
     };
     
@@ -767,13 +807,14 @@ function App() {
         <div className="choice-container">
           {choiceData.choices.map((choice) => {
             const imageUrl = `${API_BASE_URL}/static/${safeEncodeURI(choice.image)}`;
-            const responsiveSize = calculateResponsiveSize(choice.size);
+            const responsiveProps = calculateResponsiveProperties(choice.position, choice.size);
             const positionStyle = {
-              left: `${choice.position.x * 100}%`,
-              top: `${choice.position.y * 100}%`,
-              width: responsiveSize.width,
-              height: responsiveSize.height,
-              transform: 'translate(-50%, -50%)'
+              left: responsiveProps.position.left,
+              top: responsiveProps.position.top,
+              width: responsiveProps.size.width,
+              height: responsiveProps.size.height,
+              transform: 'translate(-50%, -50%)',
+              position: 'absolute'
             };
             return (
               <div key={choice.id} className="choice-item" style={positionStyle} onClick={(e) => { e.stopPropagation(); handleChoiceSelect(choiceData, choice.id); }}>
@@ -1068,8 +1109,11 @@ function App() {
     };
 
     console.log('Getting selected choices. choiceAnswers:', choiceAnswers);
-    const selectedItems = Object.values(choiceAnswers);
+    
+    // choiceAnswers는 { selectedId: selectedId } 형태로 저장됨
+    const selectedItems = Object.keys(choiceAnswers).filter(key => choiceAnswers[key]);
     console.log('Selected items:', selectedItems);
+    
     const uniqueItems = [...new Set(selectedItems)]; // 중복 제거
     console.log('Unique items:', uniqueItems);
     

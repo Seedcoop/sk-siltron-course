@@ -89,7 +89,7 @@
           "image": "fap/팹2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.8
+            "y": 0.75
           },
           "size": {
             "width": 0.8,
@@ -132,7 +132,7 @@
           "image": "emergency/상황실2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.8
+            "y": 0.75
           },
           "size": {
             "width": 0.8,
@@ -176,7 +176,7 @@
           "image": "promote/홍보실2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.8
+            "y": 0.75
           },
           "size": {
             "width": 0.8,
@@ -217,10 +217,10 @@
         },
         {
           "id": "hammer", 
-          "image": "QC/QC1.webp",
+          "image": "QC/QC2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.8
+            "y": 0.75
           },
           "size": {
             "width": 0.8,
@@ -264,7 +264,7 @@
           "image": "research/연구실2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.8
+            "y": 0.75
           },
           "size": {
             "width": 0.8,
@@ -308,7 +308,7 @@
           "image": "tech/공정기술실2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.8
+            "y": 0.75
           },
           "size": {
             "width": 0.8,
