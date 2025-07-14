@@ -13,6 +13,7 @@ function App() {
   const [preloading, setPreloading] = useState(false);
   const [preloadProgress, setPreloadProgress] = useState(0);
   const [preloadedMedia, setPreloadedMedia] = useState(new Map());
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
   const [mouseDown, setMouseDown] = useState(false);
@@ -198,7 +199,10 @@ function App() {
         const handleLoad = (element, type) => {
           mediaMap.set(fileName, { url: fileUrl, element, type, loaded: 'complete', preloaded: true });
           loadedCount++;
-          setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+          // 모바일에서는 진행률 업데이트 빈도 제한
+          if (!isMobile || loadedCount % 2 === 0 || loadedCount === totalMedia) {
+            setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+          }
           console.log(`✅ ${type} 로딩 완료: ${fileName} (${loadedCount}/${totalMedia})`);
           resolve();
         };
@@ -206,7 +210,10 @@ function App() {
         const handleError = (type) => {
           console.error(`❌ ${type} 로딩 실패: ${fileName}`);
           loadedCount++;
-          setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+          // 모바일에서는 진행률 업데이트 빈도 제한
+          if (!isMobile || loadedCount % 2 === 0 || loadedCount === totalMedia) {
+            setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
+          }
           resolve();
         };
 
@@ -254,6 +261,7 @@ function App() {
     
     setPreloadedMedia(mediaMap);
     setPreloading(false);
+    setInitialLoadComplete(true);
     console.log(`🎉 ${isMobile ? '모바일' : '데스크톱'} ${filteredFiles.length}개 파일 로딩 완료!`);
   }, [getFileType, safeEncodeURI]);
 
@@ -871,10 +879,20 @@ function App() {
       }
     }, [fileName, startProgressiveLoading]);
 
-    console.log(`📸 ProgressiveImage render - ${fileName}:`, progressiveData);
+    // 모바일에서는 preloaded 이미지 우선 사용
+    const preloadedItem = preloadedMedia.get(fileName);
+    if (isMobile && preloadedItem && preloadedItem.preloaded) {
+      return (
+        <img 
+          src={preloadedItem.element.src} 
+          alt={fileName} 
+          className="media-content"
+          onLoad={() => console.log(`✅ Preloaded image displayed: ${fileName}`)}
+        />
+      );
+    }
 
     if (!progressiveData || !progressiveData.src) {
-      console.log(`⏳ Loading state for ${fileName}: no data or no src`);
       return (
         <div className="media-loading">
           <div className="loading-spinner">🖼️</div>
@@ -884,30 +902,27 @@ function App() {
     }
 
     return (
-      <div className="progressive-image-container">
-        <img 
-          src={progressiveData.src} 
-          alt={fileName} 
-          className={`media-content ${progressiveData.isThumb ? 'thumb-blur' : ''}`}
-          style={{
-            filter: progressiveData.isThumb ? 'blur(1px)' : 'none',
-            transition: 'filter 0.3s ease'
-          }}
-          onLoad={() => console.log(`✅ Image loaded: ${fileName}`)}
-          onError={() => console.log(`❌ Image load error: ${fileName}`)}
-        />
-        {progressiveData.loading && (
-          <div className="progressive-loading-overlay">
-            <div className="loading-spinner">⏳</div>
-          </div>
-        )}
-      </div>
+      <img 
+        src={progressiveData.src} 
+        alt={fileName} 
+        className="media-content"
+        style={{
+          filter: progressiveData.isThumb ? 'blur(0.5px)' : 'none',
+          transition: isMobile ? 'none' : 'filter 0.3s ease'
+        }}
+        onLoad={() => console.log(`✅ Progressive image loaded: ${fileName}`)}
+      />
     );
   };
 
   const renderMedia = useCallback((fileName) => {
     const preloadedItem = preloadedMedia.get(fileName);
+    
+    // 모바일에서는 초기 로딩 완료 후에만 로딩 메시지 표시
     if (!preloadedItem || !preloadedItem.preloaded) {
+      if (isMobile && !initialLoadComplete) {
+        return <div className="media-loading"><div className="loading-spinner">⏳</div><div>로딩 중...</div></div>;
+      }
       return <div className="media-loading"><div className="loading-spinner">⏳</div><div>미디어 준비 중...</div></div>;
     }
     const fileType = getFileType(fileName);
@@ -937,7 +952,7 @@ function App() {
     }
     
     return <div className="unsupported">지원하지 않는 파일 형식입니다.</div>;
-  }, [preloadedMedia, getFileType, safeEncodeURI, userInteracted]);
+  }, [preloadedMedia, getFileType, safeEncodeURI, userInteracted, isMobile, initialLoadComplete]);
 
   // 선택된 아이템 정리
   const getSelectedChoices = useCallback(() => {
@@ -1028,7 +1043,20 @@ function App() {
   };
 
   const renderContent = () => {
-    if (loading) return <div className="loading-screen">파일 목록을 불러오는 중...</div>;
+    if (loading) return (
+      <div className="loading-screen">
+        <div className="loading-spinner">🚀</div>
+        <div>{isMobile ? '로딩 중...' : '파일 목록을 불러오는 중...'}</div>
+        {preloading && (
+          <div className="progress-container">
+            <div className="progress-bar">
+              <div className="progress-fill" style={{width: `${preloadProgress}%`}}></div>
+            </div>
+            <div className="progress-text">{preloadProgress}%</div>
+          </div>
+        )}
+      </div>
+    );
     if (error) return <div className="error-screen">{error}</div>;
     if (files.length === 0) return <div className="no-files">contents 폴더에 미디어 파일이 없습니다.</div>;
 
@@ -1038,9 +1066,15 @@ function App() {
       // 유효한 인덱스로 자동 보정
       if (files.length > 0) {
         setCurrentIndex(0);
-        return <div className="loading-screen">인덱스를 보정하는 중...</div>;
+        return <div className="loading-screen">
+          <div className="loading-spinner">⚙️</div>
+          <div>인덱스를 보정하는 중...</div>
+        </div>;
       }
-      return <div className="loading-screen">콘텐츠를 표시할 수 없습니다.</div>;
+      return <div className="loading-screen">
+        <div className="loading-spinner">⚠️</div>
+        <div>콘텐츠를 표시할 수 없습니다.</div>
+      </div>;
     }
 
     const currentItem = files[currentIndex];
@@ -1069,7 +1103,10 @@ function App() {
     }
     
     console.log('Unknown item type:', currentItem);
-    return <div className="loading-screen">알 수 없는 콘텐츠 형식입니다.</div>;
+    return <div className="loading-screen">
+      <div className="loading-spinner">❓</div>
+      <div>알 수 없는 콘텐츠 형식입니다.</div>
+    </div>;
   };
 
   return (
