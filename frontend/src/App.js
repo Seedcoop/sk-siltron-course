@@ -35,6 +35,10 @@ function App() {
   const [progressiveImages, setProgressiveImages] = useState(new Map());
   const [isMobile, setIsMobile] = useState(false);
   const [connectionSpeed, setConnectionSpeed] = useState('fast');
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
   const containerRef = useRef(null);
   const audioRef = useRef(null);
 
@@ -62,6 +66,19 @@ function App() {
     };
     
     checkMobile();
+  }, []);
+
+  // 윈도우 크기 변경 감지 (choice 화면 반응형 대응)
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const safeEncodeURI = useCallback((path) => {
@@ -729,6 +746,20 @@ function App() {
 
   const renderChoiceScreen = (choiceData, choiceIndex) => {
     const backgroundUrl = `${API_BASE_URL}/static/${safeEncodeURI(choiceData.background)}`;
+    
+    // 정사각형 배경에 대한 상대적 크기 계산 (화면 비율 무관)
+    const calculateResponsiveSize = (size) => {
+      // 화면의 최소 치수를 기준으로 계산 (정사각형 기준)
+      const minDimension = Math.min(windowDimensions.width, windowDimensions.height);
+      // 모바일에서는 약간 더 크게 (터치하기 쉽게)
+      const scaleFactor = isMobile ? 1.2 : 1.0;
+      
+      return {
+        width: `${size.width * minDimension * scaleFactor}px`,
+        height: `${size.height * minDimension * scaleFactor}px`
+      };
+    };
+    
     return (
       <div className="choice-screen">
         <img src={backgroundUrl} alt="배경" className="choice-background" />
@@ -736,11 +767,12 @@ function App() {
         <div className="choice-container">
           {choiceData.choices.map((choice) => {
             const imageUrl = `${API_BASE_URL}/static/${safeEncodeURI(choice.image)}`;
+            const responsiveSize = calculateResponsiveSize(choice.size);
             const positionStyle = {
               left: `${choice.position.x * 100}%`,
               top: `${choice.position.y * 100}%`,
-              width: `${choice.size.width * 100}%`,
-              height: `${choice.size.height * 100}%`,
+              width: responsiveSize.width,
+              height: responsiveSize.height,
               transform: 'translate(-50%, -50%)'
             };
             return (

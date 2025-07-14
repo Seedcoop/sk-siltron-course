@@ -79,8 +79,8 @@
             "y": 0.45
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "fap/팹_눈.webp"
         },
@@ -92,8 +92,8 @@
             "y": 0.8
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "fap/팹_책.webp"
         }
@@ -122,8 +122,8 @@
             "y": 0.45
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "emergency/상황실_눈.webp"
         },
@@ -135,8 +135,8 @@
             "y": 0.8
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "emergency/상황실_노트.webp"
         }
@@ -166,8 +166,8 @@
             "y": 0.45
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "promote/홍보실_악수.webp"
         },
@@ -179,8 +179,8 @@
             "y": 0.8
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "promote/홍보실_팔레트.webp"
         }
@@ -210,8 +210,8 @@
             "y": 0.45
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "QC/QC_책.webp"
         },
@@ -223,8 +223,8 @@
             "y": 0.8
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "QC/QC_망치.webp"
         }
@@ -254,8 +254,8 @@
             "y": 0.45
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "research/연구실_노트.webp"
         },
@@ -267,8 +267,8 @@
             "y": 0.8
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "research/연구실_팔레트.webp"
         }
@@ -298,8 +298,8 @@
             "y": 0.45
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "tech/공정기술실_망치.webp"
         },
@@ -311,8 +311,8 @@
             "y": 0.8
           },
           "size": {
-            "width": 0.45,
-            "height": 0.45
+            "width": 0.8,
+            "height": 0.8
           },
           "results": "tech/공정기술실_악수.webp"
         }
