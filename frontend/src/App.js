@@ -31,6 +31,7 @@ function App() {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showChoiceSummary, setShowChoiceSummary] = useState(false);
+  const [progressiveImages, setProgressiveImages] = useState(new Map());
   const containerRef = useRef(null);
   const audioRef = useRef(null);
 
@@ -46,14 +47,118 @@ function App() {
     return 'unknown';
   }, []);
 
+  // Progressive Loading 함수 (Hook이 아님)
+  const startProgressiveLoading = useCallback((src) => {
+    const fileType = getFileType(src);
+    if (fileType !== 'image') {
+      return;
+    }
+
+    // 이미 처리 중이거나 완료된 이미지는 건너뛰기
+    if (progressiveImages.has(src)) {
+      return;
+    }
+
+    // 썸네일과 원본 이미지 로딩
+    const loadProgressiveImage = async () => {
+      try {
+        // 초기 로딩 상태 설정
+        setProgressiveImages(prev => new Map(prev).set(src, { 
+          src: null, 
+          loading: true,
+          isThumb: false 
+        }));
+
+        // 1단계: 썸네일 로드 (빠른 로딩)
+        const thumbSrc = `${API_BASE_URL}/api/thumbnail/${safeEncodeURI(src)}?size=200&quality=70`;
+        
+        const thumbImg = new Image();
+        
+        const thumbPromise = new Promise((resolve) => {
+          thumbImg.onload = () => {
+            setProgressiveImages(prev => new Map(prev).set(src, { 
+              src: thumbSrc, 
+              loading: true,
+              isThumb: true 
+            }));
+            resolve(thumbSrc);
+          };
+          thumbImg.onerror = () => {
+            resolve(null);
+          };
+        });
+
+        thumbImg.src = thumbSrc;
+        const thumbResult = await thumbPromise;
+
+        if (!thumbResult) {
+          // 썸네일 로드 실패 시 원본으로 바로 시도
+          const fallbackSrc = `${API_BASE_URL}/static/${safeEncodeURI(src)}`;
+          setProgressiveImages(prev => new Map(prev).set(src, { 
+            src: fallbackSrc, 
+            loading: false,
+            isThumb: false 
+          }));
+          return;
+        }
+
+        // 2단계: 원본 이미지 백그라운드 로드
+        const fullSrc = `${API_BASE_URL}/static/${safeEncodeURI(src)}`;
+        
+        const fullImg = new Image();
+        
+        const fullPromise = new Promise((resolve) => {
+          fullImg.onload = () => {
+            setProgressiveImages(prev => new Map(prev).set(src, { 
+              src: fullSrc, 
+              loading: false,
+              isThumb: false 
+            }));
+            resolve(fullSrc);
+          };
+          fullImg.onerror = () => {
+            // 원본 로드 실패 시 썸네일 유지
+            setProgressiveImages(prev => new Map(prev).set(src, { 
+              src: thumbSrc, 
+              loading: false,
+              isThumb: true 
+            }));
+            resolve(thumbSrc);
+          };
+        });
+
+        fullImg.src = fullSrc;
+        await fullPromise;
+
+      } catch (error) {
+        const fallbackSrc = `${API_BASE_URL}/static/${safeEncodeURI(src)}`;
+        setProgressiveImages(prev => new Map(prev).set(src, { 
+          src: fallbackSrc, 
+          loading: false,
+          isThumb: false 
+        }));
+      }
+    };
+
+    // 비동기 로딩 시작
+    loadProgressiveImage();
+  }, [getFileType, safeEncodeURI]);
+
   const preloadMedia = useCallback(async (mediaFiles) => {
     if (mediaFiles.length === 0) return;
+    
+    // 이미 프리로딩 중이면 중복 실행 방지
+    if (preloading) {
+      console.log('⏭️ Preloading already in progress, skipping');
+      return;
+    }
+    
     setPreloading(true);
     setPreloadProgress(0);
     const mediaMap = new Map();
     let loadedCount = 0;
     const totalMedia = mediaFiles.length;
-    console.log(`🚀 모든 미디어 ${totalMedia}개 한 번에 로딩 시작!`);
+    console.log(`🚀 미디어 ${totalMedia}개 로딩 시작!`);
 
     const loadFullMedia = (fileName) => {
       return new Promise((resolve) => {
@@ -101,10 +206,8 @@ function App() {
   const preloadSingleMedia = useCallback(async (fileName) => {
     if (preloadedMedia.has(fileName)) return;
 
-    console.log(`🚀 동적 로딩 시작: ${fileName}`);
     const fileType = getFileType(fileName);
     if (fileType !== 'image' && fileType !== 'video') {
-        console.log(`- 동적 로딩 건너뜀 (미지원 형식): ${fileName}`);
         return;
     }
     
@@ -113,12 +216,10 @@ function App() {
     return new Promise((resolve) => {
         const handleLoad = (element, type) => {
             setPreloadedMedia(prevMap => new Map(prevMap).set(fileName, { url: fileUrl, element, type, loaded: 'complete', preloaded: true }));
-            console.log(`✅ 동적 로딩 완료: ${fileName}`);
             resolve();
         };
 
         const handleError = (type) => {
-            console.error(`❌ 동적 로딩 실패: ${fileName}`);
             resolve();
         };
 
@@ -167,7 +268,6 @@ function App() {
   const initializeAudio = useCallback(() => {
     if (!audioInitialized && userInteracted) {
       setAudioInitialized(true);
-      console.log('🎵 오디오 시스템 초기화됨');
     }
   }, [audioInitialized, userInteracted]);
 
@@ -182,7 +282,6 @@ function App() {
       if (audioRef.current) {
         audioRef.current.volume = newMuted ? 0 : 0.3;
       }
-      console.log(newMuted ? '🔇 오디오 음소거' : '🔊 오디오 음소거 해제');
       return newMuted;
     });
   }, []);
@@ -209,11 +308,9 @@ function App() {
       audio.volume = isMuted ? 0 : 0.3;
       
       audio.play().then(() => {
-        console.log(`🎵 배경음악 재생: ${currentSection.sound}`);
         setCurrentAudio(currentSection.sound);
         audioRef.current = audio;
-      }).catch(err => {
-        console.error('오디오 재생 실패:', err);
+      }).catch(() => {
       });
     }
   }, [audioInitialized, soundSections, currentAudio, isMuted]);
@@ -223,6 +320,40 @@ function App() {
       playBackgroundSound(currentIndex);
     }
   }, [currentIndex, audioInitialized, playBackgroundSound]);
+
+  // 스마트 프리로딩 시스템 (기존 preloadMedia 사용)
+  const smartPreload = useCallback((index) => {
+    if (!files.length) return;
+
+    const preloadRange = 3; // 현재 + 앞뒤 3개씩
+    const startIndex = Math.max(0, index - 1);
+    const endIndex = Math.min(files.length, index + preloadRange + 1);
+    
+    const mediaToPreload = [];
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const file = files[i];
+      if (typeof file === 'string' && !preloadedMedia.has(file)) {
+        const fileType = getFileType(file);
+        if (fileType === 'image' || fileType === 'video') {
+          mediaToPreload.push(file);
+        }
+      }
+    }
+
+    if (mediaToPreload.length > 0) {
+      preloadMedia(mediaToPreload);
+    }
+  }, [files, getFileType, preloadedMedia, preloadMedia]);
+
+  // 현재 인덱스 변경 시 스마트 프리로딩 실행 (debounce)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      smartPreload(currentIndex);
+    }, 100); // 100ms 지연으로 연속 호출 방지
+
+    return () => clearTimeout(timer);
+  }, [currentIndex, smartPreload]);
 
   // 뮤트 상태 변경 시 현재 오디오 볼륨 조정
   useEffect(() => {
@@ -239,8 +370,7 @@ function App() {
 
     if (files.length > 0 && currentIndex < files.length) {
       const currentItem = files[currentIndex];
-      console.log('Current item at index', currentIndex, ':', currentItem);
-      console.log('Next few items:', files.slice(currentIndex + 1, currentIndex + 4));
+      // console.log('Current item at index', currentIndex, ':', currentItem);
       
       if (typeof currentItem === 'object') {
         console.log('Object type detected:', currentItem.type);
@@ -296,7 +426,7 @@ function App() {
         }
       }
     }
-  }, [currentIndex, files, preloadedMedia, preloadMedia]);
+  }, [currentIndex, files]);
 
   const saveToBrowserCache = useCallback((cacheData) => {
     try {
@@ -335,8 +465,6 @@ function App() {
     console.log('Choice selected:', selectedChoiceId);
     console.log('Current choice index:', currentIndex);
     
-    // choice 화면을 먼저 닫음
-    setShowChoice(false);
     setCurrentChoiceIndex(currentIndex); // choice 위치 저장
     
     const selectedChoice = choiceData.choices.find(c => c.id === selectedChoiceId);
@@ -347,41 +475,47 @@ function App() {
       console.log('Result image from choice data:', resultImage);
       
       if (resultImage) {
-        // results 이미지를 즉시 preload
-        if (!preloadedMedia.has(resultImage)) {
-          preloadMedia([resultImage]).then(() => {
+        // results 이미지를 먼저 preload하고 준비가 완료되면 화면 전환
+        const loadResultImage = async () => {
+          if (!preloadedMedia.has(resultImage)) {
+            await preloadSingleMedia(resultImage);
             console.log('Result image preloaded:', resultImage);
-          });
-        }
+          }
+          
+          // 이미지 로딩이 완료된 후 화면 전환
+          // 임시 파일 배열 생성 (choice 다음에 results 이미지 삽입)
+          const tempFiles = [...files];
+          tempFiles.splice(currentIndex + 1, 0, resultImage);
+          setFiles(tempFiles);
+          
+          // choice 화면을 닫고 results 이미지로 이동
+          setShowChoice(false);
+          setCurrentIndex(currentIndex + 1);
+          setCrossroadPending(true);
+          console.log('Moving to results image at index:', currentIndex + 1);
+          console.log('Crossroad pending - navigation disabled');
+          
+          // crossroad 표시 (설정된 delay 후)
+          // files에서 crossroad 객체를 찾아 delay 값 가져오기
+          let crossroadDelay = 5000; // 기본값 5초
+          const crossroadObj = files.find(item => 
+            typeof item === 'object' && item.type === 'crossroad'
+          );
+          if (crossroadObj && crossroadObj.delay) {
+            crossroadDelay = crossroadObj.delay;
+          }
+          
+          console.log(`Crossroad will show after ${crossroadDelay}ms`);
+          setTimeout(() => {
+            setShowCrossroad(true);
+            console.log('Showing crossroad overlay on results image');
+          }, crossroadDelay);
+        };
         
-        // 임시 파일 배열 생성 (choice 다음에 results 이미지 삽입)
-        const tempFiles = [...files];
-        tempFiles.splice(currentIndex + 1, 0, resultImage);
-        setFiles(tempFiles);
-        
-        // results 이미지로 이동하고 crossroad 대기 상태 설정
-        setCurrentIndex(currentIndex + 1);
-        setCrossroadPending(true);
-        console.log('Moving to results image at index:', currentIndex + 1);
-        console.log('Crossroad pending - navigation disabled');
-        
-        // crossroad 표시 (설정된 delay 후)
-        // files에서 crossroad 객체를 찾아 delay 값 가져오기
-        let crossroadDelay = 5000; // 기본값 5초
-        const crossroadObj = files.find(item => 
-          typeof item === 'object' && item.type === 'crossroad'
-        );
-        if (crossroadObj && crossroadObj.delay) {
-          crossroadDelay = crossroadObj.delay;
-        }
-        
-        console.log(`Crossroad will show after ${crossroadDelay}ms`);
-        setTimeout(() => {
-          setShowCrossroad(true);
-          console.log('Showing crossroad overlay on results image');
-        }, crossroadDelay);
+        loadResultImage();
       } else {
         console.log('No results found, moving to next file');
+        setShowChoice(false);
         setCurrentIndex(prev => (prev < files.length - 1 ? prev + 1 : prev));
       }
     }
@@ -401,7 +535,7 @@ function App() {
     .catch(error => {
       console.error('선택지 저장 실패 (백그라운드):', error);
     });
-  }, [files, currentIndex, nextFile, saveToBrowserCache, preloadedMedia, preloadMedia, playClickSound]);
+  }, [files, currentIndex, nextFile, saveToBrowserCache, preloadedMedia, preloadSingleMedia, playClickSound]);
 
   const handleQuizSubmit = useCallback(async (quizData, selectedOption) => {
     playClickSound();
@@ -554,8 +688,6 @@ function App() {
     const previousText = crossroadData?.previousText || '이전으로';
     const handleAction = (direction) => {
       playClickSound();
-      setShowCrossroad(false);
-      setCrossroadPending(false);
       if (direction === 'next') {
         // 다음 콘텐츠로 진행 - crossroad 객체들을 건너뛰고 실제 미디어 파일로 이동
         let nextIndex = currentIndex + 1;
@@ -564,15 +696,26 @@ function App() {
         while (nextIndex < files.length) {
           const nextFile = files[nextIndex];
           if (typeof nextFile === 'string') {
-            // 미디어 파일을 찾았으므로 이동
-            preloadMedia([nextFile]).then(() => {
+            // 미디어 파일을 찾았으므로 먼저 preload하고 화면 전환
+            const loadNextMedia = async () => {
+              if (!preloadedMedia.has(nextFile)) {
+                await preloadSingleMedia(nextFile);
+                console.log('Next media preloaded:', nextFile);
+              }
+              
+              // 미디어 로딩 완료 후 crossroad 닫고 이동
+              setShowCrossroad(false);
+              setCrossroadPending(false);
               setCurrentIndex(nextIndex);
-            });
-            break;
+            };
+            loadNextMedia();
+            return; // 함수 종료
           } else if (typeof nextFile === 'object' && nextFile.type !== 'crossroad') {
-            // crossroad가 아닌 다른 객체 타입이면 이동
+            // crossroad가 아닌 다른 객체 타입이면 바로 이동
+            setShowCrossroad(false);
+            setCrossroadPending(false);
             setCurrentIndex(nextIndex);
-            break;
+            return; // 함수 종료
           } else {
             // crossroad 객체면 건너뛰기
             nextIndex++;
@@ -582,6 +725,8 @@ function App() {
         // 끝까지 도달한 경우
         if (nextIndex >= files.length) {
           console.log('Reached end of files');
+          setShowCrossroad(false);
+          setCrossroadPending(false);
         }
       } else {
         // choice로 돌아가기 - results 이미지를 제거하고 원본 choice로 복귀
@@ -600,6 +745,8 @@ function App() {
           
           // choice로 돌아가기
           console.log('Returning to choice at index:', currentChoiceIndex);
+          setShowCrossroad(false);
+          setCrossroadPending(false);
           setCurrentIndex(currentChoiceIndex);
           
           setTimeout(() => {
@@ -624,12 +771,16 @@ function App() {
           
           if (choiceIndex !== -1) {
             console.log('Found choice at index:', choiceIndex);
+            setShowCrossroad(false);
+            setCrossroadPending(false);
             setCurrentIndex(choiceIndex);
             setTimeout(() => {
               setShowChoice(true);
             }, 50);
           } else {
             console.log('No choice found, staying at current position');
+            setShowCrossroad(false);
+            setCrossroadPending(false);
             setCurrentIndex(0); // 첫 번째 아이템으로 이동
           }
         }
@@ -646,9 +797,55 @@ function App() {
         </div>
       </div>
     );
-  }, [currentIndex, files, preloadMedia, currentChoiceIndex, loadFiles, playClickSound]);
+  }, [currentIndex, files, preloadedMedia, preloadSingleMedia, currentChoiceIndex, playClickSound]);
 
-  const renderMedia = (fileName) => {
+  // Progressive Loading을 위한 이미지 컴포넌트
+  const ProgressiveImage = ({ fileName }) => {
+    const progressiveData = progressiveImages.get(fileName);
+
+    // 컴포넌트가 마운트될 때 Progressive Loading 시작
+    useEffect(() => {
+      if (getFileType(fileName) === 'image' && !progressiveImages.has(fileName)) {
+        console.log(`🔄 Starting progressive loading for: ${fileName}`);
+        startProgressiveLoading(fileName);
+      }
+    }, [fileName]);
+
+    console.log(`📸 ProgressiveImage render - ${fileName}:`, progressiveData);
+
+    if (!progressiveData || !progressiveData.src) {
+      console.log(`⏳ Loading state for ${fileName}: no data or no src`);
+      return (
+        <div className="media-loading">
+          <div className="loading-spinner">🖼️</div>
+          <div>이미지 로딩 중...</div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="progressive-image-container">
+        <img 
+          src={progressiveData.src} 
+          alt={fileName} 
+          className={`media-content ${progressiveData.isThumb ? 'thumb-blur' : ''}`}
+          style={{
+            filter: progressiveData.isThumb ? 'blur(1px)' : 'none',
+            transition: 'filter 0.3s ease'
+          }}
+          onLoad={() => console.log(`✅ Image loaded: ${fileName}`)}
+          onError={() => console.log(`❌ Image load error: ${fileName}`)}
+        />
+        {progressiveData.loading && (
+          <div className="progressive-loading-overlay">
+            <div className="loading-spinner">⏳</div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderMedia = useCallback((fileName) => {
     const preloadedItem = preloadedMedia.get(fileName);
     if (!preloadedItem || !preloadedItem.preloaded) {
       return <div className="media-loading"><div className="loading-spinner">⏳</div><div>미디어 준비 중...</div></div>;
@@ -657,16 +854,30 @@ function App() {
     if (fileType === 'image') {
       return <img src={preloadedItem.element.src} alt={fileName} className="media-content" />;
     }
+    
     if (fileType === 'video') {
       return (
-        <video src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} controls autoPlay={userInteracted} muted={userInteracted} loop className="media-content" preload="auto"
-          onClick={(e) => { e.target.muted = false; if (e.target.paused) e.target.play().catch(console.error); }}
-          onLoadedData={(e) => { if (userInteracted && e.target.paused) e.target.play().catch(console.error); }}
+        <video 
+          src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} 
+          controls 
+          autoPlay={userInteracted} 
+          muted={userInteracted} 
+          loop 
+          className="media-content" 
+          preload="auto"
+          onClick={(e) => { 
+            e.target.muted = false; 
+            if (e.target.paused) e.target.play().catch(console.error); 
+          }}
+          onLoadedData={(e) => { 
+            if (userInteracted && e.target.paused) e.target.play().catch(console.error); 
+          }}
         />
       );
     }
+    
     return <div className="unsupported">지원하지 않는 파일 형식입니다.</div>;
-  };
+  }, [preloadedMedia, getFileType, safeEncodeURI, userInteracted]);
 
   // 선택된 아이템 정리
   const getSelectedChoices = useCallback(() => {
