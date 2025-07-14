@@ -32,8 +32,36 @@ function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [showChoiceSummary, setShowChoiceSummary] = useState(false);
   const [progressiveImages, setProgressiveImages] = useState(new Map());
+  const [isMobile, setIsMobile] = useState(false);
+  const [connectionSpeed, setConnectionSpeed] = useState('fast');
   const containerRef = useRef(null);
   const audioRef = useRef(null);
+
+  // 모바일 및 연결 속도 감지
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(mobile);
+      
+      // 연결 속도 감지 (Network Information API)
+      if ('connection' in navigator) {
+        const connection = navigator.connection;
+        const effectiveType = connection.effectiveType;
+        
+        if (effectiveType === 'slow-2g' || effectiveType === '2g') {
+          setConnectionSpeed('slow');
+        } else if (effectiveType === '3g') {
+          setConnectionSpeed('medium');
+        } else {
+          setConnectionSpeed('fast');
+        }
+        
+        console.log(`📱 Device: ${mobile ? 'Mobile' : 'Desktop'}, Connection: ${effectiveType}`);
+      }
+    };
+    
+    checkMobile();
+  }, []);
 
   const safeEncodeURI = useCallback((path) => {
     return path.split('/').map(encodeURIComponent).join('/');
@@ -69,8 +97,10 @@ function App() {
           isThumb: false 
         }));
 
-        // 1단계: 썸네일 로드 (빠른 로딩)
-        const thumbSrc = `${API_BASE_URL}/api/thumbnail/${safeEncodeURI(src)}?size=200&quality=70`;
+        // 1단계: 모바일 최적화 썸네일 로드
+        const thumbSize = isMobile ? 150 : 200;
+        const thumbQuality = connectionSpeed === 'slow' ? 50 : (connectionSpeed === 'medium' ? 60 : 70);
+        const thumbSrc = `${API_BASE_URL}/api/thumbnail/${safeEncodeURI(src)}?size=${thumbSize}&quality=${thumbQuality}`;
         
         const thumbImg = new Image();
         
@@ -142,7 +172,7 @@ function App() {
 
     // 비동기 로딩 시작
     loadProgressiveImage();
-  }, [getFileType, safeEncodeURI]);
+  }, [getFileType, safeEncodeURI, isMobile, connectionSpeed]);
 
   const preloadMedia = useCallback(async (mediaFiles) => {
     if (mediaFiles.length === 0) return;
@@ -180,14 +210,19 @@ function App() {
           resolve();
         };
 
+        // 모바일에서는 썸네일 우선 로딩
+        const actualUrl = isMobile && fileType === 'image' 
+          ? `${API_BASE_URL}/api/thumbnail/${safeEncodeURI(fileName)}?size=${connectionSpeed === 'slow' ? 300 : 400}&quality=85`
+          : fileUrl;
+
         if (fileType === 'image') {
           const img = new Image();
           img.onload = () => handleLoad(img, 'image');
           img.onerror = () => handleError('image');
-          img.src = fileUrl;
-        } else if (fileType === 'video') {
+          img.src = actualUrl;
+        } else if (fileType === 'video' && !isMobile) {
           const video = document.createElement('video');
-          video.preload = 'auto';
+          video.preload = connectionSpeed === 'slow' ? 'metadata' : 'auto';
           video.oncanplaythrough = () => handleLoad(video, 'video');
           video.onerror = () => handleError('video');
           video.src = fileUrl;
@@ -197,10 +232,29 @@ function App() {
       });
     };
 
-    await Promise.all(mediaFiles.map(loadFullMedia));
+    // 모바일 최적화: 이미지만 우선 로딩, 청크 단위 처리
+    const maxConcurrent = isMobile ? 2 : 4;
+    const chunkSize = connectionSpeed === 'slow' ? 1 : (connectionSpeed === 'medium' ? 2 : maxConcurrent);
+    
+    const filteredFiles = isMobile 
+      ? mediaFiles.filter(file => getFileType(file) === 'image').slice(0, 10)
+      : mediaFiles;
+    
+    // 청크 단위로 순차 로딩
+    for (let i = 0; i < filteredFiles.length; i += chunkSize) {
+      const chunk = filteredFiles.slice(i, i + chunkSize);
+      const chunkPromises = chunk.map(loadFullMedia);
+      await Promise.all(chunkPromises);
+      
+      // 느린 연결에서는 청크 간 지연
+      if (connectionSpeed === 'slow' && i + chunkSize < filteredFiles.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
     setPreloadedMedia(mediaMap);
     setPreloading(false);
-    console.log(`🎉 전체 ${mediaFiles.length}개 파일 완전 로딩 완료!`);
+    console.log(`🎉 ${isMobile ? '모바일' : '데스크톱'} ${filteredFiles.length}개 파일 로딩 완료!`);
   }, [getFileType, safeEncodeURI]);
 
   const preloadSingleMedia = useCallback(async (fileName) => {
@@ -249,7 +303,9 @@ function App() {
       setSoundSections(orderResponse.data.soundSections || []);
       const mediaFiles = filesResponse.data.filter(item => typeof item === 'string' && getFileType(item) !== 'unknown');
       if (mediaFiles.length > 0) {
-        await preloadMedia(mediaFiles);
+        // 모바일에서는 초기 로딩 제한
+        const initialFiles = isMobile ? mediaFiles.slice(0, 5) : mediaFiles;
+        await preloadMedia(initialFiles);
       }
       setError(null);
     } catch (err) {
@@ -258,7 +314,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [preloadMedia, getFileType]);
+  }, [preloadMedia, getFileType, isMobile]);
 
   useEffect(() => {
     loadFiles();
@@ -321,11 +377,12 @@ function App() {
     }
   }, [currentIndex, audioInitialized, playBackgroundSound]);
 
-  // 스마트 프리로딩 시스템 (기존 preloadMedia 사용)
+  // 모바일 최적화 스마트 프리로딩
   const smartPreload = useCallback((index) => {
     if (!files.length) return;
 
-    const preloadRange = 3; // 현재 + 앞뒤 3개씩
+    // 모바일에서는 더 적은 범위 프리로딩
+    const preloadRange = isMobile ? 1 : 3;
     const startIndex = Math.max(0, index - 1);
     const endIndex = Math.min(files.length, index + preloadRange + 1);
     
@@ -335,8 +392,11 @@ function App() {
       const file = files[i];
       if (typeof file === 'string' && !preloadedMedia.has(file)) {
         const fileType = getFileType(file);
-        if (fileType === 'image' || fileType === 'video') {
-          mediaToPreload.push(file);
+        // 모바일에서는 이미지만 프리로딩
+        if (!isMobile || fileType === 'image') {
+          if (fileType === 'image' || fileType === 'video') {
+            mediaToPreload.push(file);
+          }
         }
       }
     }
@@ -344,7 +404,7 @@ function App() {
     if (mediaToPreload.length > 0) {
       preloadMedia(mediaToPreload);
     }
-  }, [files, getFileType, preloadedMedia, preloadMedia]);
+  }, [files, getFileType, preloadedMedia, preloadMedia, isMobile]);
 
   // 현재 인덱스 변경 시 스마트 프리로딩 실행 (debounce)
   useEffect(() => {
@@ -809,7 +869,7 @@ function App() {
         console.log(`🔄 Starting progressive loading for: ${fileName}`);
         startProgressiveLoading(fileName);
       }
-    }, [fileName]);
+    }, [fileName, startProgressiveLoading]);
 
     console.log(`📸 ProgressiveImage render - ${fileName}:`, progressiveData);
 

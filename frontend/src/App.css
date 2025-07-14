@@ -10,6 +10,31 @@
   box-sizing: border-box;
   overflow: hidden;
   position: relative;
+  
+  /* 모바일 최적화 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 모바일 전용 스타일 */
+@media (max-width: 768px) {
+  .app {
+    background-attachment: local; /* 모바일에서 fixed 성능 이슈 해결 */
+  }
+  
+  .media-container {
+    height: 100vh; /* 모바일에서 전체 화면 사용 */
+  }
+  
+  .viewer-container {
+    backdrop-filter: blur(10px); /* 모바일에서 blur 성능 최적화 */
+  }
+  
+  img, video {
+    image-rendering: optimizeSpeed; /* 모바일 렌더링 최적화 */
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
 }
 
 .viewer-container {
@@ -29,6 +54,11 @@
   user-select: none;
   -webkit-user-drag: none;
   cursor: grab;
+  
+  /* 모바일 최적화 */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .viewer-container:active {
@@ -46,6 +76,10 @@
   margin: 0;
   position: relative;
   overflow: hidden;
+  
+  /* 모바일 최적화 */
+  will-change: transform;
+  transform: translateZ(0); /* GPU 가속 */
 }
 
 .media-content {
