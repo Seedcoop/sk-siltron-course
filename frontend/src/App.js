@@ -552,7 +552,7 @@ function App() {
         setCrossroadPending(true);
         
         let crossroadDelay = 5000;
-        const crossroadObj = files.find(item => typeof item === 'object' && item.type === 'crossroad');
+        const crossroadObj = files.slice(currentIndex + 1).find(item => typeof item === 'object' && item.type === 'crossroad');
         if (crossroadObj && crossroadObj.delay) {
           crossroadDelay = crossroadObj.delay;
         }
@@ -639,7 +639,6 @@ function App() {
   const onMouseUp = () => {
     if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
     if (!mouseStart || !mouseEnd) {
-      nextFile();
       setMouseDown(false);
       return;
     }
@@ -889,17 +888,17 @@ function App() {
     
     if (isMobile) {
       if (fileType === 'image') {
-        return <img src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} alt={fileName} className="media-content" style={{ opacity: 1, transition: 'none' }} />;
+        return <img src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} alt={fileName} className="media-content" style={{ opacity: 1, transition: 'none' }} onClick={(e) => e.stopPropagation()} />;
       }
       if (fileType === 'video') {
-        return <video src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} controls autoPlay={userInteracted} muted={userInteracted} className="media-content" style={{ opacity: 1, transition: 'none' }} onClick={(e) => { e.target.muted = false; setUserInteracted(true); if (e.target.paused) e.target.play().catch(console.error); }} />;
+        return <video src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} controls autoPlay={userInteracted} muted={isMuted} className="media-content" style={{ opacity: 1, transition: 'none' }} onClick={(e) => e.stopPropagation()} />;
       }
     }
     
     if (!isMobile && fileType === 'image') {
       const preloadedItem = preloadedMedia.get(fileName);
       if (preloadedItem && preloadedItem.preloaded) {
-        return <img src={preloadedItem.element.src} alt={fileName} className="media-content" />;
+        return <img src={preloadedItem.element.src} alt={fileName} className="media-content" onClick={(e) => e.stopPropagation()} />;
       }
       return <SimpleImage fileName={fileName} />;
     }
@@ -910,11 +909,11 @@ function App() {
     }
     
     if (fileType === 'video') {
-      return <video src={videoPreloadedItem.url || `${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} controls autoPlay={userInteracted} muted={userInteracted} className="media-content" preload="auto" onClick={(e) => { e.target.muted = false; if (e.target.paused) e.target.play().catch(console.error); }} onLoadedData={(e) => { if (userInteracted && e.target.paused) e.target.play().catch(console.error); }} />;
+      return <video src={videoPreloadedItem.url || `${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} controls autoPlay={userInteracted} muted={isMuted} className="media-content" preload="auto" onClick={(e) => e.stopPropagation()} onLoadedData={(e) => { if (userInteracted && e.target.paused) e.target.play().catch(console.error); }} />;
     }
     
     return <div className="unsupported">지원하지 않는 파일 형식입니다.</div>;
-  }, [preloadedMedia, getFileType, safeEncodeURI, userInteracted, isMobile, API_BASE_URL]);
+  }, [preloadedMedia, getFileType, safeEncodeURI, userInteracted, isMobile, API_BASE_URL, isMuted]);
 
   const getSelectedChoices = useCallback(() => {
     const choiceLabels = { 'book': '책', 'note': '노트', 'hands': '악수', 'hammer': '망치', 'pallete': '팔레트', 'eye': '눈' };
