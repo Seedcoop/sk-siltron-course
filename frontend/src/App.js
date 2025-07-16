@@ -54,24 +54,35 @@ function App() {
     return { primary: basePath, fallback: null };
   }, []);
 
-  // 이미지 프리로딩 함수 - 의존성 제거하여 무한 루프 방지
+  // 이미지 프리로딩 함수 - 모바일 최적화
   const preloadImage = useCallback((fileName) => {
     return new Promise((resolve, reject) => {
       const basePath = `/contents/${fileName}`;
       const img = new Image();
       
+      // 모바일에서 이미지 로딩 타임아웃 설정
+      const timeoutId = setTimeout(() => {
+        console.warn(`이미지 로드 타임아웃: ${fileName}`);
+        reject(new Error(`Timeout loading ${fileName}`));
+      }, 10000); // 10초 타임아웃
+      
       img.onload = () => {
+        clearTimeout(timeoutId);
         // 상태 업데이트로 리렌더링 트리거
         setPreloadedImages(prev => new Set([...prev, fileName]));
         setImageCache(prev => new Map([...prev, [fileName, img]]));
+        console.log(`이미지 프리로드 성공: ${fileName}`);
         resolve(img);
       };
       
-      img.onerror = () => {
-        console.warn(`이미지 프리로드 실패: ${fileName}`);
+      img.onerror = (error) => {
+        clearTimeout(timeoutId);
+        console.warn(`이미지 프리로드 실패: ${fileName}`, error);
         reject(new Error(`Failed to preload ${fileName}`));
       };
       
+      // 모바일에서 crossOrigin 설정 제거 (CORS 문제 방지)
+      // img.crossOrigin = 'anonymous';
       img.src = basePath;
     });
   }, []); // 의존성 완전히 제거
@@ -84,7 +95,13 @@ function App() {
   //   // 프리로딩 비활성화
   // }, []);
 
-  // 모든 이미지 프리로딩 함수
+  // 모바일 감지 함수
+  const isMobile = useCallback(() => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           window.innerWidth <= 768;
+  }, []);
+
+  // 모든 이미지 프리로딩 함수 - 모바일 최적화
   const preloadAllImages = useCallback(async (files) => {
     console.log('모든 이미지 프리로딩 시작...');
     const imagesToPreload = [];
@@ -131,9 +148,12 @@ function App() {
       });
     }
     
-    // 배치로 나누어 프리로드 (한 번에 5개씩)
-    const batchSize = 5;
+    // 모바일에서는 더 작은 배치 크기 사용
+    const batchSize = isMobile() ? 2 : 5;
+    const batchDelay = isMobile() ? 200 : 100;
     let loadedCount = 0;
+    
+    console.log(`모바일 모드: ${isMobile()}, 배치 크기: ${batchSize}`);
     
     for (let i = 0; i < uniqueImages.length; i += batchSize) {
       const batch = uniqueImages.slice(i, i + batchSize);
@@ -153,9 +173,9 @@ function App() {
           })
         );
         
-        // 배치 간 짧은 대기 (브라우저 부하 방지)
+        // 배치 간 대기 (모바일에서는 더 긴 대기)
         if (i + batchSize < uniqueImages.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, batchDelay));
         }
       } catch (error) {
         console.warn('이미지 배치 로드 실패:', error);
@@ -163,7 +183,7 @@ function App() {
     }
     
     console.log(`모든 이미지 프리로딩 완료! (${loadedCount}/${uniqueImages.length})`);
-  }, [preloadImage]);
+  }, [preloadImage, isMobile]);
 
   // 파일 로드 및 모든 이미지 프리로딩
   useEffect(() => {
@@ -177,10 +197,13 @@ function App() {
         setSoundSections(data.soundSections || []); // soundSections 로드
         setError(null);
         
-        // 파일 로드 완료 후 모든 이미지 프리로딩 시작
+        // 모바일과 데스크톱 모두 전체 프리로딩 (모바일은 더 늦게 시작)
+        const delay = isMobile() ? 1500 : 500; // 모바일에서는 1.5초 후 시작
+        console.log(`${isMobile() ? '모바일' : '데스크톱'} 환경: ${delay}ms 후 전체 프리로딩 시작`);
+        
         setTimeout(() => {
           preloadAllImages(loadedFiles);
-        }, 500); // 0.5초 후 시작 (초기 렌더링 완료 후)
+        }, delay);
         
       } catch (err) {
         setError('파일을 불러오는데 실패했습니다.');
@@ -493,19 +516,32 @@ function App() {
               }}
               onError={(e) => {
                 console.error('이미지 로드 실패:', fileName, e.target.src);
+                
+                // 모바일에서 이미지 로드 재시도 (최대 3번)
+                const retryCount = parseInt(e.target.dataset.retryCount || '0');
+                if (retryCount < 3) {
+                  console.log(`이미지 로드 재시도 (${retryCount + 1}/3):`, fileName);
+                  e.target.dataset.retryCount = (retryCount + 1).toString();
+                  
+                  // 재시도 간격을 점진적으로 증가
+                  const retryDelay = (retryCount + 1) * 1000;
+                  setTimeout(() => {
+                    e.target.src = `/contents/${fileName}?retry=${retryCount + 1}&t=${Date.now()}`;
+                  }, retryDelay);
+                  return;
+                }
+                
                 // WebP 실패 시 fallback 이미지로 전환
                 if (fallbackUrl && e.target.src !== fallbackUrl) {
                   console.log('WebP 실패, fallback으로 전환:', fallbackUrl);
                   e.target.src = fallbackUrl;
                 } else {
                   console.error('이미지 로드 완전 실패:', fileName);
-                  // 테스트용 더미 이미지로 대체
-                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7snbTrr7jsp4Ag7JeG7J2MPC90ZXh0Pjwvc3ZnPg==';
-                  // 상태 업데이트하여 로딩 완료로 처리
+                  // 상태 업데이트하여 로딩 완료로 처리 (더미 이미지 없이)
                   if (!preloadedImages.has(fileName)) {
                     setPreloadedImages(prev => {
                       const newSet = new Set([...prev, fileName]);
-                      console.log('더미 이미지로 preloadedImages 업데이트:', newSet);
+                      console.log('실패한 이미지도 preloadedImages에 추가:', newSet);
                       return newSet;
                     });
                   }
@@ -638,7 +674,37 @@ function App() {
       );
     }
     
-    return <div className="media-content">지원하지 않는 파일 형식입니다.</div>;
+    // 지원하지 않는 파일 형식에 대한 더 나은 처리
+    console.warn('지원하지 않는 파일 형식:', fileName, 'fileType:', fileType);
+    return (
+      <div className="media-content" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        color: '#fff',
+        textAlign: 'center',
+        padding: '2rem'
+      }}>
+        <h3>파일을 로드할 수 없습니다</h3>
+        <p>파일명: {fileName}</p>
+        <p>파일 형식: {fileType}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          style={{
+            marginTop: '1rem',
+            padding: '0.5rem 1rem',
+            backgroundColor: '#667eea',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          새로고침
+        </button>
+      </div>
+    );
   };
 
   const renderQuiz = (quizData) => {
