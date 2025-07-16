@@ -387,7 +387,8 @@ function App() {
       const audioUrl = `${API_BASE_URL}/static/sounds/${currentSection.sound}`;
       const audio = new Audio(audioUrl);
       audio.loop = true;
-      audio.volume = isMuted ? 0 : 0.3;
+      audio.volume = 0.3;
+      audio.muted = isMuted;
       
       audio.play().then(() => {
         setCurrentAudio(currentSection.sound);
@@ -437,11 +438,14 @@ function App() {
     return () => clearTimeout(timer);
   }, [currentIndex, smartPreload]);
 
-  // 뮤트 상태 변경 시 현재 오디오 볼륨 조정
+  // 뮤트 상태 변경 시 현재 오디오 및 비디오 음소거/해제
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : 0.3;
+      audioRef.current.muted = isMuted;
     }
+    document.querySelectorAll('video').forEach(vid => {
+      vid.muted = isMuted;
+    });
   }, [isMuted]);
 
   useEffect(() => {
