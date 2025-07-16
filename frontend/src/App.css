@@ -43,7 +43,7 @@ body {
   display: block;
 }
 
-/* 이미지 컨테이너 및 로딩 */
+/* 이미지 컨테이너 */
 .image-container {
   position: relative;
   width: 100%;
@@ -51,19 +51,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.image-loading {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  color: #ffffff;
-  z-index: 10;
 }
 
 .loading-spinner {
@@ -80,20 +67,30 @@ body {
   100% { transform: rotate(360deg); }
 }
 
-.image-loading span {
-  font-size: 1rem;
-  font-weight: 500;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+/* 에러 콘텐츠 */
+.error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  text-align: center;
+  padding: 2rem;
 }
 
-.media-content.loading {
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
+.error-content h3 {
+  margin-bottom: 1rem;
+  color: #ff6b6b;
 }
 
-.media-content.loaded {
-  opacity: 1;
-  transition: opacity 0.3s ease-in-out;
+.error-content button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 /* 로딩 및 에러 */

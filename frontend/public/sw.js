@@ -1,10 +1,10 @@
-// 서비스 워커 - 이미지 캐싱 최적화
-const CACHE_NAME = 'sksiltron-images-v1';
-const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24시간
+// 간소화된 서비스 워커 - 모바일 최적화
+const CACHE_NAME = 'sksiltron-v2';
+const CACHE_EXPIRY = 12 * 60 * 60 * 1000; // 12시간 (모바일 메모리 절약)
 
 // 캐시할 파일 패턴
 const CACHEABLE_PATTERNS = [
-  /\/contents\/.*\.(png|jpg|jpeg|gif|webp|bmp)$/i,
+  /\/contents\/.*\.(png|jpg|jpeg|gif|webp|bmp|webm|mp4)$/i,
   /\/contents\/.*\.json$/i
 ];
 
@@ -23,7 +23,6 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('이전 캐시 삭제:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -34,7 +33,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 네트워크 요청 가로채기
+// 네트워크 요청 가로채기 - 모바일 최적화
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
@@ -46,97 +45,46 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// 캐시 가능한 요청 처리
+// 간소화된 캐시 처리
 async function handleCacheableRequest(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cachedResponse = await cache.match(request);
-  
-  // 캐시된 응답이 있고 만료되지 않았다면 반환
-  if (cachedResponse) {
-    const cachedDate = new Date(cachedResponse.headers.get('sw-cached-date'));
-    const now = new Date();
-    
-    if (now - cachedDate < CACHE_EXPIRY) {
-      // 캐시 히트 로그 완전히 제거 (성능 향상)
-      return cachedResponse;
-    } else {
-      // 만료된 캐시 삭제
-      await cache.delete(request);
-    }
-  }
-  
   try {
-    // 네트워크에서 가져오기
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match(request);
+    
+    // 캐시된 응답이 있으면 바로 반환 (만료 체크 간소화)
+    if (cachedResponse) {
+      // 백그라운드에서 네트워크 요청으로 캐시 업데이트 (stale-while-revalidate)
+      fetch(request).then(networkResponse => {
+        if (networkResponse.ok) {
+          cache.put(request, networkResponse.clone());
+        }
+      }).catch(() => {
+        // 네트워크 실패는 무시
+      });
+      
+      return cachedResponse;
+    }
+    
+    // 캐시가 없으면 네트워크에서 가져오기
     const networkResponse = await fetch(request);
     
     if (networkResponse.ok) {
-      // 응답 복사 (스트림은 한 번만 읽을 수 있음)
-      const responseToCache = networkResponse.clone();
-      
-      // 캐시 날짜 헤더 추가
-      const headers = new Headers(responseToCache.headers);
-      headers.set('sw-cached-date', new Date().toISOString());
-      
-      const modifiedResponse = new Response(responseToCache.body, {
-        status: responseToCache.status,
-        statusText: responseToCache.statusText,
-        headers: headers
-      });
-      
       // 캐시에 저장
-      cache.put(request, modifiedResponse);
-      console.log('네트워크에서 가져와서 캐시에 저장:', request.url);
+      cache.put(request, networkResponse.clone());
     }
     
     return networkResponse;
   } catch (error) {
-    console.error('네트워크 요청 실패:', request.url, error);
+    console.error('요청 처리 실패:', request.url, error);
     
-    // 네트워크 실패 시 만료된 캐시라도 반환
+    // 최후의 수단으로 캐시에서 찾기
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match(request);
+    
     if (cachedResponse) {
-      console.log('네트워크 실패, 만료된 캐시 반환:', request.url);
       return cachedResponse;
     }
     
     throw error;
   }
-}
-
-// 메시지 이벤트 (프리로딩 요청 처리)
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'PRELOAD_IMAGES') {
-    preloadImages(event.data.urls);
-  }
-});
-
-// 이미지 프리로딩
-async function preloadImages(urls) {
-  const cache = await caches.open(CACHE_NAME);
-  
-  const preloadPromises = urls.map(async (url) => {
-    try {
-      const cachedResponse = await cache.match(url);
-      
-      if (!cachedResponse) {
-        const response = await fetch(url);
-        if (response.ok) {
-          const headers = new Headers(response.headers);
-          headers.set('sw-cached-date', new Date().toISOString());
-          
-          const modifiedResponse = new Response(response.body, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: headers
-          });
-          
-          await cache.put(url, modifiedResponse);
-          console.log('프리로드 완료:', url);
-        }
-      }
-    } catch (error) {
-      console.warn('프리로드 실패:', url, error);
-    }
-  });
-  
-  await Promise.allSettled(preloadPromises);
 }
