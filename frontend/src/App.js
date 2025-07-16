@@ -625,65 +625,39 @@ function App() {
           loading="eager"
         />
         {choiceData.choices.map((choice, index) => {
-          // CSS 변수와 완전히 동일한 계산
-          const vw = window.innerWidth;
-          const vh = window.innerHeight;
-          
-          // 배경 이미지 크기 (CSS: min(var(--actual-vw), var(--actual-vh)))
+          const vw = viewportSize.width;
+          const vh = viewportSize.height;
           const backgroundSize = Math.min(vw, vh);
-          
-          // 배경 이미지 위치 (화면 중앙)
           const backgroundLeft = (vw - backgroundSize) / 2;
           const backgroundTop = (vh - backgroundSize) / 2;
           
-          // choice 위치 = 배경 위치 + (비율 × 배경 크기)
-          const choiceX = backgroundLeft + (choice.position.x * backgroundSize);
-          const choiceY = backgroundTop + (choice.position.y * backgroundSize);
+          // 모바일에서 선택지를 아래로 조정 (y 위치에 오프셋 추가)
+          const mobileOffset = isMobile() ? 0.1 : 0; // 모바일에서 10% 아래로
+          const adjustedY = Math.min(choice.position.y + mobileOffset, 0.9); // 최대 90% 위치
           
-          // choice 크기 = 비율 × 배경 크기
+          const choiceX = backgroundLeft + (choice.position.x * backgroundSize);
+          const choiceY = backgroundTop + (adjustedY * backgroundSize);
           const choiceWidth = choice.size.width * backgroundSize;
           const choiceHeight = choice.size.height * backgroundSize;
-          
-          // 상세 디버깅 로그
-          console.log(`🎯 Choice ${index} (${choice.id}):`, {
-            device: isMobile() ? '📱 Mobile' : '💻 PC',
-            viewport: `${vw}×${vh}`,
-            backgroundSize: `${backgroundSize}px`,
-            backgroundPos: `(${backgroundLeft}, ${backgroundTop})`,
-            choicePos: `(${choiceX}, ${choiceY})`,
-            ratios: `pos(${choice.position.x}, ${choice.position.y})`,
-            cssVars: `--actual-vw=${vw}px, --actual-vh=${vh}px`
-          });
           
           return (
             <img
               key={choice.id}
               src={`/contents/${choice.image}`}
               alt={choice.id}
-              className={`choice-option choice-option-${index}`}
+              className="choice-option"
               loading="eager"
               style={{
                 position: 'absolute',
                 left: `${choiceX}px`,
                 top: `${choiceY}px`,
                 transform: 'translate(-50%, -50%)',
-                cursor: 'pointer',
-                zIndex: 10 + index,
                 maxWidth: `${choiceWidth}px`,
                 maxHeight: `${choiceHeight}px`,
                 width: 'auto',
-                height: 'auto',
-                transition: 'transform 0.3s ease'
+                height: 'auto'
               }}
               onClick={() => handleChoiceSelect(choiceData, choice.id, index)}
-              onMouseEnter={(e) => {
-                e.target.style.transform = 'translate(-50%, -50%) scale(1.1)';
-                e.target.style.zIndex = 100;
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.transform = 'translate(-50%, -50%) scale(1)';
-                e.target.style.zIndex = 10 + index;
-              }}
             />
           );
         })}
