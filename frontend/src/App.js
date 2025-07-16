@@ -28,6 +28,9 @@ function App() {
   
   // 프리로딩 관련 상태
   const [preloadedImages, setPreloadedImages] = useState(new Set());
+  
+  // 오디오 프리로딩 및 캐싱
+  const [audioCache, setAudioCache] = useState(new Map());
 
   // 모바일 감지
   const isMobile = useCallback(() => {
@@ -166,14 +169,71 @@ function App() {
     }
   }, [currentIndex, testStarted, files.length, preloadNextImages]);
 
-  // 오디오 초기화
+  // 오디오 프리로딩 함수
+  const preloadAudio = useCallback((soundFile) => {
+    return new Promise((resolve, reject) => {
+      if (audioCache.has(soundFile)) {
+        resolve(audioCache.get(soundFile));
+        return;
+      }
+
+      const audio = new Audio(`/contents/sounds/${soundFile}`);
+      audio.loop = true;
+      audio.volume = 0.3;
+      audio.preload = 'auto';
+      
+      // 모바일에서 더 짧은 타임아웃
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Audio timeout: ${soundFile}`));
+      }, isMobile() ? 3000 : 5000);
+      
+      audio.oncanplaythrough = () => {
+        clearTimeout(timeoutId);
+        setAudioCache(prev => new Map([...prev, [soundFile, audio]]));
+        console.log(`🎵 오디오 프리로드 완료: ${soundFile}`);
+        resolve(audio);
+      };
+      
+      audio.onerror = (error) => {
+        clearTimeout(timeoutId);
+        console.warn(`❌ 오디오 프리로드 실패: ${soundFile}`, error);
+        reject(error);
+      };
+      
+      // 모바일에서 즉시 로드 시작
+      audio.load();
+    });
+  }, [audioCache, isMobile]);
+
+  // 오디오 초기화 및 프리로딩
   useEffect(() => {
     if (userInteracted && !audioInitialized) {
       setAudioInitialized(true);
+      
+      // 모든 사운드 파일 프리로딩 (모바일 최적화)
+      if (soundSections.length > 0) {
+        console.log('🎵 오디오 프리로딩 시작...');
+        const uniqueSounds = [...new Set(soundSections.map(section => section.sound))];
+        
+        // 모바일에서는 순차적으로, PC에서는 병렬로 프리로딩
+        if (isMobile()) {
+          // 모바일: 순차 프리로딩 (메모리 절약)
+          uniqueSounds.reduce((promise, sound) => {
+            return promise.then(() => {
+              return preloadAudio(sound).catch(error => {
+                console.warn(`모바일 오디오 프리로딩 실패: ${sound}`, error);
+              });
+            });
+          }, Promise.resolve());
+        } else {
+          // PC: 병렬 프리로딩
+          Promise.allSettled(uniqueSounds.map(sound => preloadAudio(sound)));
+        }
+      }
     }
-  }, [userInteracted, audioInitialized]);
+  }, [userInteracted, audioInitialized, soundSections, preloadAudio, isMobile]);
 
-  // 배경음 재생
+  // 배경음 재생 - 모바일 최적화
   useEffect(() => {
     if (!audioInitialized || !soundSections.length || !testStarted) return;
 
@@ -186,6 +246,7 @@ function App() {
     const newSoundFile = currentSection ? currentSection.sound : null;
     
     if (newSoundFile !== currentAudio) {
+      // 이전 오디오 정리
       if (currentAudioRef) {
         currentAudioRef.pause();
         currentAudioRef.currentTime = 0;
@@ -195,19 +256,50 @@ function App() {
       setCurrentAudio(newSoundFile);
 
       if (newSoundFile && !isMuted) {
-        const audio = new Audio(`/contents/sounds/${newSoundFile}`);
-        audio.loop = true;
-        audio.volume = 0.3;
+        // 캐시된 오디오 사용 (모바일 최적화)
+        const cachedAudio = audioCache.get(newSoundFile);
         
-        audio.play().then(() => {
-          setCurrentAudioRef(audio);
-          console.log(`사운드 재생 시작: ${newSoundFile}`);
-        }).catch(error => {
-          console.log('오디오 재생 실패:', error);
-        });
+        if (cachedAudio) {
+          // 캐시된 오디오 사용 - 즉시 재생
+          cachedAudio.currentTime = 0;
+          cachedAudio.play().then(() => {
+            setCurrentAudioRef(cachedAudio);
+            console.log(`🎵 캐시된 사운드 재생: ${newSoundFile}`);
+          }).catch(error => {
+            console.log('캐시된 오디오 재생 실패:', error);
+            // 캐시 실패 시 새로 생성
+            createAndPlayAudio(newSoundFile);
+          });
+        } else {
+          // 캐시되지 않은 경우 새로 생성
+          createAndPlayAudio(newSoundFile);
+        }
       }
     }
-  }, [currentIndex, audioInitialized, soundSections, currentAudio, isMuted, testStarted, files.length, currentAudioRef]);
+  }, [currentIndex, audioInitialized, soundSections, currentAudio, isMuted, testStarted, files.length, currentAudioRef, audioCache]);
+
+  // 새 오디오 생성 및 재생 함수
+  const createAndPlayAudio = useCallback((soundFile) => {
+    const audio = new Audio(`/contents/sounds/${soundFile}`);
+    audio.loop = true;
+    audio.volume = 0.3;
+    
+    // 모바일에서 더 빠른 재생을 위한 설정
+    if (isMobile()) {
+      audio.preload = 'auto';
+      audio.load();
+    }
+    
+    audio.play().then(() => {
+      setCurrentAudioRef(audio);
+      console.log(`🎵 새 사운드 재생: ${soundFile}`);
+      
+      // 재생 성공 시 캐시에 저장
+      setAudioCache(prev => new Map([...prev, [soundFile, audio]]));
+    }).catch(error => {
+      console.log('오디오 재생 실패:', error);
+    });
+  }, [isMobile]);
 
   // 음소거 토글
   const toggleMute = useCallback(() => {
@@ -502,26 +594,46 @@ function App() {
           loading="eager"
         />
         {choiceData.choices.map((choice, index) => {
-          // 모바일과 PC에서 동일한 위치 계산을 위한 개선된 로직
+          // PC와 모바일에서 완전히 동일한 위치 계산
           const viewportWidth = window.innerWidth;
           const viewportHeight = window.innerHeight;
           
-          // 정사각형 기준 크기 (더 일관된 계산)
-          const baseSize = Math.min(viewportWidth, viewportHeight);
+          // 모바일에서 실제 뷰포트 높이 (주소창, 네비게이션 바 제외)
+          const actualViewportHeight = isMobile() ? 
+            Math.min(viewportHeight, window.screen.height) : viewportHeight;
           
-          // 배경 이미지가 정사각형이라고 가정하고 중앙 정렬
-          const containerWidth = baseSize;
-          const containerHeight = baseSize;
-          const offsetX = (viewportWidth - containerWidth) / 2;
-          const offsetY = (viewportHeight - containerHeight) / 2;
+          // 정사각형 컨테이너 크기 - PC 기준으로 통일
+          const containerSize = Math.min(viewportWidth, actualViewportHeight);
           
-          // choice.position은 0~1 사이의 비율값
-          const absoluteX = offsetX + (choice.position.x * containerWidth);
-          const absoluteY = offsetY + (choice.position.y * containerHeight);
+          // 컨테이너 중앙 정렬을 위한 오프셋
+          const offsetX = (viewportWidth - containerSize) / 2;
+          const offsetY = (actualViewportHeight - containerSize) / 2;
           
-          // choice.size도 0~1 사이의 비율값
-          const maxWidth = choice.size.width * containerWidth;
-          const maxHeight = choice.size.height * containerHeight;
+          // 모바일에서 상단 여백 조정 (PC와 동일한 위치가 되도록)
+          const mobileTopAdjustment = isMobile() ? -20 : 0; // 모바일에서 20px 위로 조정
+          
+          // 절대 위치 계산 (PC 기준과 동일하게)
+          const absoluteX = offsetX + (choice.position.x * containerSize);
+          const absoluteY = offsetY + (choice.position.y * containerSize) + mobileTopAdjustment;
+          
+          // 크기 계산
+          const maxWidth = choice.size.width * containerSize;
+          const maxHeight = choice.size.height * containerSize;
+          
+          // 디버깅 로그
+          console.log(`Choice ${index} 위치:`, {
+            isMobile: isMobile(),
+            viewportWidth,
+            viewportHeight,
+            actualViewportHeight,
+            containerSize,
+            offsetX,
+            offsetY,
+            mobileTopAdjustment,
+            absoluteX,
+            absoluteY,
+            choicePosition: choice.position
+          });
           
           return (
             <img
@@ -541,9 +653,7 @@ function App() {
                 maxHeight: `${maxHeight}px`,
                 width: 'auto',
                 height: 'auto',
-                transition: 'transform 0.3s ease',
-                // 디버깅을 위한 임시 스타일 (나중에 제거 가능)
-                // border: '2px solid red'
+                transition: 'transform 0.3s ease'
               }}
               onClick={() => handleChoiceSelect(choiceData, choice.id, index)}
               onMouseEnter={(e) => {
