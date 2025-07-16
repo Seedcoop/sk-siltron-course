@@ -589,6 +589,18 @@ function App() {
   };
 
   const renderChoice = (choiceData) => {
+    // CSS 변수 설정으로 JavaScript와 CSS 동기화
+    useEffect(() => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      
+      // CSS 커스텀 속성으로 뷰포트 크기 설정
+      document.documentElement.style.setProperty('--actual-vw', `${vw}px`);
+      document.documentElement.style.setProperty('--actual-vh', `${vh}px`);
+      
+      console.log(`📐 CSS 변수 설정: --actual-vw=${vw}px, --actual-vh=${vh}px`);
+    }, []);
+    
     return (
       <div className="choice-screen">
         <img 
@@ -598,11 +610,11 @@ function App() {
           loading="eager"
         />
         {choiceData.choices.map((choice, index) => {
-          // 간단한 비율 기반 계산 - CSS와 완전히 동일
+          // CSS 변수와 완전히 동일한 계산
           const vw = window.innerWidth;
           const vh = window.innerHeight;
           
-          // 배경 이미지 크기 (CSS: min(100vw, 100vh))
+          // 배경 이미지 크기 (CSS: min(var(--actual-vw), var(--actual-vh)))
           const backgroundSize = Math.min(vw, vh);
           
           // 배경 이미지 위치 (화면 중앙)
@@ -617,15 +629,15 @@ function App() {
           const choiceWidth = choice.size.width * backgroundSize;
           const choiceHeight = choice.size.height * backgroundSize;
           
-          // 디버깅 로그
+          // 상세 디버깅 로그
           console.log(`🎯 Choice ${index} (${choice.id}):`, {
             device: isMobile() ? '📱 Mobile' : '💻 PC',
             viewport: `${vw}×${vh}`,
             backgroundSize: `${backgroundSize}px`,
             backgroundPos: `(${backgroundLeft}, ${backgroundTop})`,
             choicePos: `(${choiceX}, ${choiceY})`,
-            choiceSize: `${choiceWidth}×${choiceHeight}`,
-            ratios: `pos(${choice.position.x}, ${choice.position.y}) size(${choice.size.width}, ${choice.size.height})`
+            ratios: `pos(${choice.position.x}, ${choice.position.y})`,
+            cssVars: `--actual-vw=${vw}px, --actual-vh=${vh}px`
           });
           
           return (

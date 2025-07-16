@@ -31,12 +31,12 @@ body {
   justify-content: center;
   position: relative;
   overflow: hidden;
-  padding-bottom: 120px; /* 네비게이션 바 공간 확보 */
+  padding-bottom: 80px; /* 네비게이션 바 공간 최소화 */
 }
 
 .media-content {
   max-width: 100%;
-  max-height: calc(100vh - 160px); /* 네비게이션 바와 여백을 더 여유롭게 */
+  max-height: calc(100vh - 120px); /* 네비게이션 바와 여백 조정 */
   width: auto;
   height: auto;
   object-fit: contain;
@@ -380,7 +380,29 @@ body {
 
 /* 선택지 */
 .choice-option {
-  /* 간단하고 깔끔한 선택지 스타일 */
+  position: absolute;
+  background: linear-gradient(145deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.8) 100%);
+  backdrop-filter: blur(15px);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 16px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  color: #2c3e50;
+  font-weight: 600;
+  text-align: center;
+  min-width: 120px;
+  max-width: 200px;
+  z-index: 10;
+}
+
+.choice-option:hover {
+  background: linear-gradient(145deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
+  color: white;
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+  border-color: rgba(255,255,255,0.5);
 }
 
 .choice-option.loading {
