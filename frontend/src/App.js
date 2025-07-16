@@ -54,36 +54,56 @@ function App() {
     return { primary: basePath, fallback: null };
   }, []);
 
-  // 이미지 프리로딩 함수 - 모바일 최적화
+  // 이미지 프리로딩 함수 - 모바일 최적화 강화
   const preloadImage = useCallback((fileName) => {
     return new Promise((resolve, reject) => {
+      // 모바일에서 메모리 절약을 위해 이미 캐시된 이미지는 스킵
+      if (preloadedImages.has(fileName)) {
+        console.log(`이미 프리로드된 이미지 스킵: ${fileName}`);
+        resolve(imageCache.get(fileName));
+        return;
+      }
+
       const basePath = `/contents/${fileName}`;
       const img = new Image();
       
-      // 모바일에서 이미지 로딩 타임아웃 설정
+      // 모바일에서 더 짧은 타임아웃 (메모리 절약)
       const timeoutId = setTimeout(() => {
-        console.warn(`이미지 로드 타임아웃: ${fileName}`);
+        console.warn(`⏰ 이미지 로드 타임아웃: ${fileName}`);
+        img.src = ''; // 메모리 해제
         reject(new Error(`Timeout loading ${fileName}`));
-      }, 10000); // 10초 타임아웃
+      }, 8000); // 8초 타임아웃으로 단축
       
       img.onload = () => {
         clearTimeout(timeoutId);
         // 상태 업데이트로 리렌더링 트리거
         setPreloadedImages(prev => new Set([...prev, fileName]));
         setImageCache(prev => new Map([...prev, [fileName, img]]));
-        console.log(`이미지 프리로드 성공: ${fileName}`);
+        console.log(`✅ 이미지 프리로드 성공: ${fileName}`);
         resolve(img);
       };
       
       img.onerror = (error) => {
         clearTimeout(timeoutId);
-        console.warn(`이미지 프리로드 실패: ${fileName}`, error);
+        console.warn(`❌ 이미지 프리로드 실패: ${fileName}`, error);
+        img.src = ''; // 메모리 해제
         reject(new Error(`Failed to preload ${fileName}`));
       };
       
-      // 모바일에서 crossOrigin 설정 제거 (CORS 문제 방지)
-      // img.crossOrigin = 'anonymous';
-      img.src = basePath;
+      // 모바일에서 메모리 효율성을 위한 설정
+      img.loading = 'eager';
+      img.decoding = 'async';
+      
+      // 모바일에서 강제 캐시 무효화 및 메모리 최적화
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobileDevice) {
+        // 모바일에서 더 강력한 캐시 무효화
+        const timestamp = Date.now();
+        const randomParam = Math.random().toString(36).substring(7);
+        img.src = `${basePath}?mobile=1&t=${timestamp}&r=${randomParam}&preload=1`;
+      } else {
+        img.src = basePath;
+      }
     });
   }, []); // 의존성 완전히 제거
 
@@ -478,13 +498,15 @@ function App() {
       const isPreloaded = preloadedImages.has(fileName);
       const { primary: optimizedUrl, fallback: fallbackUrl } = getOptimizedImageUrl(fileName);
       
-      // 디버깅 로그
+      // 디버깅 로그 (모바일에서 더 자세히)
       console.log('이미지 렌더링:', {
         fileName,
         isPreloaded,
         optimizedUrl,
         fallbackUrl,
-        preloadedImagesSize: preloadedImages.size
+        preloadedImagesSize: preloadedImages.size,
+        isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+        currentIndex: currentIndex
       });
       
       return (
@@ -515,36 +537,50 @@ function App() {
                 }
               }}
               onError={(e) => {
-                console.error('이미지 로드 실패:', fileName, e.target.src);
+                console.error('🚨 이미지 로드 실패:', fileName, e.target.src);
+                console.error('🚨 현재 인덱스:', currentIndex);
+                console.error('🚨 모바일 환경:', /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
                 
-                // 모바일에서 이미지 로드 재시도 (최대 3번)
+                // 네트워크 상태 확인
+                if (navigator.onLine) {
+                  console.log('✅ 네트워크 연결 상태: 온라인');
+                } else {
+                  console.error('❌ 네트워크 연결 상태: 오프라인');
+                }
+                
+                // 모바일에서 이미지 로드 재시도 (최대 5번으로 증가)
                 const retryCount = parseInt(e.target.dataset.retryCount || '0');
-                if (retryCount < 3) {
-                  console.log(`이미지 로드 재시도 (${retryCount + 1}/3):`, fileName);
+                if (retryCount < 5) {
+                  console.log(`🔄 이미지 로드 재시도 (${retryCount + 1}/5):`, fileName);
                   e.target.dataset.retryCount = (retryCount + 1).toString();
                   
-                  // 재시도 간격을 점진적으로 증가
-                  const retryDelay = (retryCount + 1) * 1000;
+                  // 재시도 간격을 점진적으로 증가 (더 길게)
+                  const retryDelay = (retryCount + 1) * 2000; // 2초, 4초, 6초, 8초, 10초
+                  console.log(`⏰ ${retryDelay}ms 후 재시도 예정`);
+                  
                   setTimeout(() => {
-                    e.target.src = `/contents/${fileName}?retry=${retryCount + 1}&t=${Date.now()}`;
+                    console.log(`🔄 재시도 실행 중: ${fileName}`);
+                    // 모바일에서 더 강력한 캐시 무효화
+                    const timestamp = Date.now();
+                    const randomParam = Math.random().toString(36).substring(7);
+                    e.target.src = `/contents/${fileName}?retry=${retryCount + 1}&t=${timestamp}&r=${randomParam}&mobile=1`;
                   }, retryDelay);
                   return;
                 }
                 
-                // WebP 실패 시 fallback 이미지로 전환
-                if (fallbackUrl && e.target.src !== fallbackUrl) {
-                  console.log('WebP 실패, fallback으로 전환:', fallbackUrl);
-                  e.target.src = fallbackUrl;
-                } else {
-                  console.error('이미지 로드 완전 실패:', fileName);
-                  // 상태 업데이트하여 로딩 완료로 처리 (더미 이미지 없이)
-                  if (!preloadedImages.has(fileName)) {
-                    setPreloadedImages(prev => {
-                      const newSet = new Set([...prev, fileName]);
-                      console.log('실패한 이미지도 preloadedImages에 추가:', newSet);
-                      return newSet;
-                    });
-                  }
+                console.error('💀 모든 재시도 실패:', fileName);
+                
+                // 최종 실패 시 더미 이미지로 대체
+                console.log('🎨 더미 이미지로 대체');
+                e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI0MCUiIGZvbnQtc2l6ZT0iMTYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNmZmYiPuydtOuvuOyngCDroZzrk5zsl6Dsl6E8L3RleHQ+PHRleHQgeD0iNTAlIiB5PSI2MCUiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNhYWEiPicgKyBmaWxlTmFtZSArICc8L3RleHQ+PC9zdmc+';
+                
+                // 상태 업데이트하여 로딩 완료로 처리
+                if (!preloadedImages.has(fileName)) {
+                  setPreloadedImages(prev => {
+                    const newSet = new Set([...prev, fileName]);
+                    console.log('✅ 실패한 이미지도 preloadedImages에 추가:', newSet);
+                    return newSet;
+                  });
                 }
               }}
               style={{
