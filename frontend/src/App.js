@@ -594,45 +594,37 @@ function App() {
           loading="eager"
         />
         {choiceData.choices.map((choice, index) => {
-          // PC와 모바일에서 완전히 동일한 위치 계산
+          // CSS와 완전히 동일한 계산: min(100vw, 100vh)
           const viewportWidth = window.innerWidth;
           const viewportHeight = window.innerHeight;
           
-          // 모바일에서 실제 뷰포트 높이 (주소창, 네비게이션 바 제외)
-          const actualViewportHeight = isMobile() ? 
-            Math.min(viewportHeight, window.screen.height) : viewportHeight;
+          // 배경 이미지와 동일한 정사각형 크기 (CSS와 일치)
+          const squareSize = Math.min(viewportWidth, viewportHeight);
           
-          // 정사각형 컨테이너 크기 - PC 기준으로 통일
-          const containerSize = Math.min(viewportWidth, actualViewportHeight);
+          // 정사각형 배경의 중앙 정렬을 위한 오프셋
+          const offsetX = (viewportWidth - squareSize) / 2;
+          const offsetY = (viewportHeight - squareSize) / 2;
           
-          // 컨테이너 중앙 정렬을 위한 오프셋
-          const offsetX = (viewportWidth - containerSize) / 2;
-          const offsetY = (actualViewportHeight - containerSize) / 2;
+          // choice.position은 0~1 사이의 비율값 (정사각형 배경 기준)
+          const absoluteX = offsetX + (choice.position.x * squareSize);
+          const absoluteY = offsetY + (choice.position.y * squareSize);
           
-          // 모바일에서 상단 여백 조정 (PC와 동일한 위치가 되도록)
-          const mobileTopAdjustment = isMobile() ? -20 : 0; // 모바일에서 20px 위로 조정
-          
-          // 절대 위치 계산 (PC 기준과 동일하게)
-          const absoluteX = offsetX + (choice.position.x * containerSize);
-          const absoluteY = offsetY + (choice.position.y * containerSize) + mobileTopAdjustment;
-          
-          // 크기 계산
-          const maxWidth = choice.size.width * containerSize;
-          const maxHeight = choice.size.height * containerSize;
+          // choice.size도 0~1 사이의 비율값 (정사각형 배경 기준)
+          const maxWidth = choice.size.width * squareSize;
+          const maxHeight = choice.size.height * squareSize;
           
           // 디버깅 로그
-          console.log(`Choice ${index} 위치:`, {
-            isMobile: isMobile(),
+          console.log(`Choice ${index} 위치 (CSS 일치):`, {
+            device: isMobile() ? 'Mobile' : 'PC',
             viewportWidth,
             viewportHeight,
-            actualViewportHeight,
-            containerSize,
+            squareSize,
             offsetX,
             offsetY,
-            mobileTopAdjustment,
             absoluteX,
             absoluteY,
-            choicePosition: choice.position
+            choicePosition: choice.position,
+            choiceSize: choice.size
           });
           
           return (
