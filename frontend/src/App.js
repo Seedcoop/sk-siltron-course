@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 function App() {
@@ -31,6 +31,10 @@ function App() {
   
   // 오디오 프리로딩 및 캐싱
   const [audioCache, setAudioCache] = useState(new Map());
+  
+  // Choice 배경 이미지 관련 상태
+  const [choiceBackgroundLoaded, setChoiceBackgroundLoaded] = useState(false);
+  const choiceBackgroundRef = useRef(null);
 
   // 모바일 감지
   const isMobile = useCallback(() => {
@@ -588,42 +592,79 @@ function App() {
     return (
       <div className="choice-screen">
         <img 
+          ref={choiceBackgroundRef}
           src={`/contents/${choiceData.background}`} 
           alt="배경" 
           className="choice-background"
           loading="eager"
+          onLoad={() => {
+            setChoiceBackgroundLoaded(true);
+            console.log('🖼️ 배경 이미지 로드 완료, choice 위치 재계산');
+            
+            // 배경 이미지 로드 후 잠시 대기하여 DOM 업데이트 완료 후 위치 재계산
+            setTimeout(() => {
+              if (choiceBackgroundRef.current) {
+                const bgRect = choiceBackgroundRef.current.getBoundingClientRect();
+                console.log('🎯 배경 이미지 실제 크기:', {
+                  width: bgRect.width,
+                  height: bgRect.height,
+                  left: bgRect.left,
+                  top: bgRect.top
+                });
+              }
+            }, 100);
+          }}
         />
         {choiceData.choices.map((choice, index) => {
-          // CSS와 완전히 동일한 계산: min(100vw, 100vh)
-          // 모바일과 PC 구분 없이 동일한 로직 적용
-          const vw = window.innerWidth;
-          const vh = window.innerHeight;
+          // 배경 이미지가 로드되고 ref가 있으면 실제 크기 기준으로 계산
+          let position;
           
-          // CSS min(100vw, 100vh)와 정확히 동일한 계산
-          const squareSize = Math.min(vw, vh);
-          
-          // 정사각형이 화면 중앙에 위치하도록 오프셋 계산
-          const offsetX = (vw - squareSize) / 2;
-          const offsetY = (vh - squareSize) / 2;
-          
-          // choice.position 비율을 정사각형 크기에 적용
-          const absoluteX = offsetX + (choice.position.x * squareSize);
-          const absoluteY = offsetY + (choice.position.y * squareSize);
-          
-          // choice.size 비율을 정사각형 크기에 적용
-          const maxWidth = choice.size.width * squareSize;
-          const maxHeight = choice.size.height * squareSize;
-          
-          // 상세 디버깅 로그
-          console.log(`🎯 Choice ${index} (${choice.id}) 위치 계산:`, {
-            device: isMobile() ? '📱 Mobile' : '💻 PC',
-            viewport: `${vw}x${vh}`,
-            squareSize: `${squareSize}px`,
-            offset: `(${offsetX}, ${offsetY})`,
-            position: `${choice.position.x}, ${choice.position.y}`,
-            absolute: `(${absoluteX}, ${absoluteY})`,
-            size: `${maxWidth}x${maxHeight}`
-          });
+          if (choiceBackgroundLoaded && choiceBackgroundRef.current) {
+            const bgRect = choiceBackgroundRef.current.getBoundingClientRect();
+            
+            // 배경 이미지의 실제 렌더링된 크기와 위치 기준
+            const absoluteX = bgRect.left + (choice.position.x * bgRect.width);
+            const absoluteY = bgRect.top + (choice.position.y * bgRect.height);
+            const maxWidth = choice.size.width * bgRect.width;
+            const maxHeight = choice.size.height * bgRect.height;
+            
+            position = {
+              left: absoluteX,
+              top: absoluteY,
+              maxWidth,
+              maxHeight
+            };
+            
+            console.log(`🎯 Choice ${index} (${choice.id}) 실제 배경 기준:`, {
+              device: isMobile() ? '📱 Mobile' : '💻 PC',
+              backgroundRect: `${bgRect.width}x${bgRect.height} at (${bgRect.left}, ${bgRect.top})`,
+              position: `${choice.position.x}, ${choice.position.y}`,
+              absolute: `(${absoluteX}, ${absoluteY})`,
+              size: `${maxWidth}x${maxHeight}`
+            });
+          } else {
+            // 배경 이미지가 아직 로드되지 않았으면 CSS 기준으로 계산
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const squareSize = Math.min(vw, vh);
+            const offsetX = (vw - squareSize) / 2;
+            const offsetY = (vh - squareSize) / 2;
+            
+            position = {
+              left: offsetX + (choice.position.x * squareSize),
+              top: offsetY + (choice.position.y * squareSize),
+              maxWidth: choice.size.width * squareSize,
+              maxHeight: choice.size.height * squareSize
+            };
+            
+            console.log(`🎯 Choice ${index} (${choice.id}) CSS 기준 (임시):`, {
+              device: isMobile() ? '📱 Mobile' : '💻 PC',
+              viewport: `${vw}x${vh}`,
+              squareSize,
+              position: `${choice.position.x}, ${choice.position.y}`,
+              absolute: `(${position.left}, ${position.top})`
+            });
+          }
           
           return (
             <img
@@ -634,13 +675,13 @@ function App() {
               loading="eager"
               style={{
                 position: 'absolute',
-                left: `${absoluteX}px`,
-                top: `${absoluteY}px`,
+                left: `${position.left}px`,
+                top: `${position.top}px`,
                 transform: 'translate(-50%, -50%)',
                 cursor: 'pointer',
                 zIndex: 10 + index,
-                maxWidth: `${maxWidth}px`,
-                maxHeight: `${maxHeight}px`,
+                maxWidth: `${position.maxWidth}px`,
+                maxHeight: `${position.maxHeight}px`,
                 width: 'auto',
                 height: 'auto',
                 transition: 'transform 0.3s ease'

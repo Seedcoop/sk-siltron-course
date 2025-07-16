@@ -197,7 +197,7 @@
           "image": "QC/QC1.webp",
           "position": {
             "x": 0.5,
-            "y": 0.65
+            "y": 0.45
           },
           "size": {
             "width": 0.8,
@@ -210,7 +210,7 @@
           "image": "QC/QC2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.9
+            "y": 0.75
           },
           "size": {
             "width": 0.8,
@@ -290,7 +290,7 @@
           "results": "tech/공정기술실_망치.png"
         },
         {
-          "id": "tech_hands",
+          "id": "hands",
           "image": "tech/공정기술실2.webp",
           "position": {
             "x": 0.5,
