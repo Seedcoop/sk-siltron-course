@@ -84,7 +84,88 @@ function App() {
   //   // 프리로딩 비활성화
   // }, []);
 
-  // 파일 로드 (간소화) - 완전히 의존성 제거
+  // 모든 이미지 프리로딩 함수
+  const preloadAllImages = useCallback(async (files) => {
+    console.log('모든 이미지 프리로딩 시작...');
+    const imagesToPreload = [];
+    
+    // 파일 타입 확인 함수
+    const checkFileType = (filename) => {
+      const ext = filename.toLowerCase().split('.').pop();
+      return ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(ext);
+    };
+    
+    // 모든 파일에서 이미지 추출
+    files.forEach(file => {
+      if (typeof file === 'string' && checkFileType(file)) {
+        imagesToPreload.push(file);
+      } else if (typeof file === 'object') {
+        // 시작 화면 배경
+        if (file.background && checkFileType(file.background)) {
+          imagesToPreload.push(file.background);
+        }
+        // choice 타입에서 이미지들 추출
+        if (file.choices) {
+          file.choices.forEach(choice => {
+            if (choice.image && checkFileType(choice.image)) {
+              imagesToPreload.push(choice.image);
+            }
+            if (choice.results && checkFileType(choice.results)) {
+              imagesToPreload.push(choice.results);
+            }
+          });
+        }
+      }
+    });
+    
+    // 중복 제거
+    const uniqueImages = [...new Set(imagesToPreload)];
+    console.log(`총 ${uniqueImages.length}개 이미지 프리로딩 시작:`, uniqueImages);
+    
+    // 서비스 워커에 모든 이미지 프리로딩 요청
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      const imageUrls = uniqueImages.map(img => `/contents/${img}`);
+      navigator.serviceWorker.controller.postMessage({
+        type: 'PRELOAD_IMAGES',
+        urls: imageUrls
+      });
+    }
+    
+    // 배치로 나누어 프리로드 (한 번에 5개씩)
+    const batchSize = 5;
+    let loadedCount = 0;
+    
+    for (let i = 0; i < uniqueImages.length; i += batchSize) {
+      const batch = uniqueImages.slice(i, i + batchSize);
+      
+      try {
+        const results = await Promise.allSettled(
+          batch.map(async (img) => {
+            try {
+              await preloadImage(img);
+              loadedCount++;
+              console.log(`이미지 로드 완료 (${loadedCount}/${uniqueImages.length}): ${img}`);
+              return img;
+            } catch (error) {
+              console.warn(`이미지 로드 실패: ${img}`, error);
+              return null;
+            }
+          })
+        );
+        
+        // 배치 간 짧은 대기 (브라우저 부하 방지)
+        if (i + batchSize < uniqueImages.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        console.warn('이미지 배치 로드 실패:', error);
+      }
+    }
+    
+    console.log(`모든 이미지 프리로딩 완료! (${loadedCount}/${uniqueImages.length})`);
+  }, [preloadImage]);
+
+  // 파일 로드 및 모든 이미지 프리로딩
   useEffect(() => {
     const loadFiles = async () => {
       try {
@@ -95,6 +176,12 @@ function App() {
         setFiles(loadedFiles);
         setSoundSections(data.soundSections || []); // soundSections 로드
         setError(null);
+        
+        // 파일 로드 완료 후 모든 이미지 프리로딩 시작
+        setTimeout(() => {
+          preloadAllImages(loadedFiles);
+        }, 500); // 0.5초 후 시작 (초기 렌더링 완료 후)
+        
       } catch (err) {
         setError('파일을 불러오는데 실패했습니다.');
         console.error('Error loading files:', err);
@@ -115,7 +202,7 @@ function App() {
           console.log('서비스 워커 등록 실패:', error);
         });
     }
-  }, []); // 완전히 빈 의존성 배열
+  }, [preloadAllImages]); // preloadAllImages 의존성 추가
 
   // 컴포넌트 언마운트 시 오디오 정리
   useEffect(() => {
