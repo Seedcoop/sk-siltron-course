@@ -39,6 +39,59 @@ body {
   object-fit: contain;
 }
 
+/* 이미지 컨테이너 및 로딩 */
+.image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  color: #ffffff;
+  z-index: 10;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.image-loading span {
+  font-size: 1rem;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.media-content.loading {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.media-content.loaded {
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+}
+
 /* 로딩 및 에러 */
 .loading, .error {
   display: flex;
@@ -287,6 +340,34 @@ body {
   z-index: 1;
 }
 
+.choice-background.loading {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.choice-background.loaded {
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.choice-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  color: #ffffff;
+  z-index: 20;
+  background: linear-gradient(145deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%);
+  backdrop-filter: blur(10px);
+  padding: 2rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
 .choice-container {
   position: absolute;
   top: 0;
@@ -299,6 +380,18 @@ body {
 /* 선택지 */
 .choice-option {
   /* 간단하고 깔끔한 선택지 스타일 */
+}
+
+.choice-option.loading {
+  opacity: 0.3;
+  filter: blur(1px);
+  transition: opacity 0.3s ease-in-out, filter 0.3s ease-in-out;
+}
+
+.choice-option.loaded {
+  opacity: 1;
+  filter: none;
+  transition: opacity 0.3s ease-in-out, filter 0.3s ease-in-out;
 }
 
 /* 교차로 */

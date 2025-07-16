@@ -25,6 +25,10 @@ function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [currentAudioRef, setCurrentAudioRef] = useState(null);
+  
+  // 이미지 프리로딩 관련 상태
+  const [preloadedImages, setPreloadedImages] = useState(new Set());
+  const [imageCache, setImageCache] = useState(new Map());
 
   // 파일 타입 확인
   const getFileType = useCallback((filename) => {
@@ -35,14 +39,146 @@ function App() {
     return 'unknown';
   }, []);
 
+  // WebP 지원 확인
+  const supportsWebP = useCallback(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    return canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+  }, []);
+
+  // 최적화된 이미지 URL 생성
+  const getOptimizedImageUrl = useCallback((fileName) => {
+    const basePath = `/contents/${fileName}`;
+    const ext = fileName.toLowerCase().split('.').pop();
+    
+    // WebP를 지원하고 원본이 PNG/JPG인 경우 WebP 버전 시도
+    if (supportsWebP() && ['png', 'jpg', 'jpeg'].includes(ext)) {
+      const webpPath = basePath.replace(/\.(png|jpg|jpeg)$/i, '.webp');
+      return { primary: webpPath, fallback: basePath };
+    }
+    
+    return { primary: basePath, fallback: null };
+  }, [supportsWebP]);
+
+  // 이미지 프리로딩 함수 (WebP 지원)
+  const preloadImage = useCallback((fileName) => {
+    return new Promise((resolve, reject) => {
+      if (preloadedImages.has(fileName)) {
+        resolve(imageCache.get(fileName));
+        return;
+      }
+
+      const { primary, fallback } = getOptimizedImageUrl(fileName);
+      const img = new Image();
+      
+      const tryLoadImage = (url, isFallback = false) => {
+        img.onload = () => {
+          setPreloadedImages(prev => new Set([...prev, fileName]));
+          setImageCache(prev => new Map([...prev, [fileName, img]]));
+          resolve(img);
+        };
+        
+        img.onerror = () => {
+          if (!isFallback && fallback) {
+            // WebP 실패 시 원본 이미지로 fallback
+            tryLoadImage(fallback, true);
+          } else {
+            console.warn(`이미지 프리로드 실패: ${fileName}`);
+            reject(new Error(`Failed to preload ${fileName}`));
+          }
+        };
+        
+        img.src = url;
+      };
+      
+      tryLoadImage(primary);
+    });
+  }, [preloadedImages, imageCache, getOptimizedImageUrl]);
+
+  // 다음 이미지들 프리로딩
+  const preloadNextImages = useCallback(async () => {
+    if (!files.length) return;
+    
+    const imagesToPreload = [];
+    const preloadRange = 3; // 다음 3개 이미지까지 프리로드
+    
+    for (let i = currentIndex + 1; i <= Math.min(currentIndex + preloadRange, files.length - 1); i++) {
+      const file = files[i];
+      
+      if (typeof file === 'string' && getFileType(file) === 'image') {
+        imagesToPreload.push(file);
+      } else if (typeof file === 'object') {
+        // choice나 다른 객체 타입에서 이미지 추출
+        if (file.background && getFileType(file.background) === 'image') {
+          imagesToPreload.push(file.background);
+        }
+        if (file.choices) {
+          file.choices.forEach(choice => {
+            if (choice.image && getFileType(choice.image) === 'image') {
+              imagesToPreload.push(choice.image);
+            }
+            if (choice.results && getFileType(choice.results) === 'image') {
+              imagesToPreload.push(choice.results);
+            }
+          });
+        }
+      }
+    }
+    
+    // 중복 제거 및 이미 로드된 이미지 제외
+    const uniqueImages = [...new Set(imagesToPreload)].filter(img => !preloadedImages.has(img));
+    
+    if (uniqueImages.length > 0) {
+      // 서비스 워커에 프리로딩 요청
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const imageUrls = uniqueImages.map(img => `/contents/${img}`);
+        navigator.serviceWorker.controller.postMessage({
+          type: 'PRELOAD_IMAGES',
+          urls: imageUrls
+        });
+      }
+      
+      // 병렬로 프리로드 (최대 3개씩)
+      const batchSize = 3;
+      for (let i = 0; i < uniqueImages.length; i += batchSize) {
+        const batch = uniqueImages.slice(i, i + batchSize);
+        try {
+          await Promise.allSettled(batch.map(img => preloadImage(img)));
+        } catch (error) {
+          console.warn('이미지 프리로드 배치 실패:', error);
+        }
+      }
+    }
+  }, [files, currentIndex, getFileType, preloadImage, preloadedImages]);
+
+  // 현재 인덱스 변경 시 다음 이미지들 프리로드
+  useEffect(() => {
+    if (testStarted) {
+      preloadNextImages();
+    }
+  }, [currentIndex, testStarted, preloadNextImages]);
+
   // 파일 로드 (간소화)
   const loadFiles = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/contents/order.json');
       const data = await response.json();
-      setFiles(data.order || []);
+      const loadedFiles = data.order || [];
+      setFiles(loadedFiles);
       setSoundSections(data.soundSections || []); // soundSections 로드
+      
+      // 첫 번째 이미지 즉시 프리로드
+      if (loadedFiles.length > 0) {
+        const firstFile = loadedFiles[0];
+        if (typeof firstFile === 'string' && getFileType(firstFile) === 'image') {
+          preloadImage(firstFile).catch(console.warn);
+        } else if (typeof firstFile === 'object' && firstFile.background) {
+          preloadImage(firstFile.background).catch(console.warn);
+        }
+      }
+      
       setError(null);
     } catch (err) {
       setError('파일을 불러오는데 실패했습니다.');
@@ -50,10 +186,21 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getFileType, preloadImage]);
 
   useEffect(() => {
     loadFiles();
+    
+    // 서비스 워커 등록
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('서비스 워커 등록 성공:', registration);
+        })
+        .catch((error) => {
+          console.log('서비스 워커 등록 실패:', error);
+        });
+    }
   }, [loadFiles]);
 
   // 컴포넌트 언마운트 시 오디오 정리
@@ -302,11 +449,49 @@ function App() {
   // 렌더링 함수들
   const renderMedia = (fileName) => {
     const fileType = getFileType(fileName);
-    const fileUrl = `/contents/${fileName}`;
     
     if (fileType === 'image') {
-      return <img src={fileUrl} alt={fileName} className="media-content" />;
+      const isPreloaded = preloadedImages.has(fileName);
+      const { primary: optimizedUrl, fallback: fallbackUrl } = getOptimizedImageUrl(fileName);
+      
+      return (
+        <div className="image-container">
+          {!isPreloaded && (
+            <div className="image-loading">
+              <div className="loading-spinner"></div>
+              <span>이미지 로딩 중...</span>
+            </div>
+          )}
+          <picture>
+            {fallbackUrl && (
+              <source srcSet={optimizedUrl} type="image/webp" />
+            )}
+            <img 
+              src={fallbackUrl || optimizedUrl}
+              alt={fileName} 
+              className={`media-content ${isPreloaded ? 'loaded' : 'loading'}`}
+              loading="eager"
+              onLoad={() => {
+                if (!preloadedImages.has(fileName)) {
+                  setPreloadedImages(prev => new Set([...prev, fileName]));
+                }
+              }}
+              onError={(e) => {
+                // WebP 실패 시 fallback 이미지로 전환
+                if (fallbackUrl && e.target.src !== fallbackUrl) {
+                  e.target.src = fallbackUrl;
+                }
+              }}
+              style={{
+                opacity: isPreloaded ? 1 : 0,
+                transition: 'opacity 0.3s ease-in-out'
+              }}
+            />
+          </picture>
+        </div>
+      );
     } else if (fileType === 'video') {
+      const fileUrl = `/contents/${fileName}`;
       return (
         <video 
           key={fileName} // 파일이 바뀔 때마다 새로운 비디오 엘리먼트 생성
@@ -456,9 +641,31 @@ function App() {
   };
 
   const renderChoice = (choiceData) => {
+    const isBackgroundPreloaded = preloadedImages.has(choiceData.background);
+    
     return (
       <div className="choice-screen">
-        <img src={`/contents/${choiceData.background}`} alt="배경" className="choice-background" />
+        {!isBackgroundPreloaded && (
+          <div className="choice-loading">
+            <div className="loading-spinner"></div>
+            <span>배경 이미지 로딩 중...</span>
+          </div>
+        )}
+        <img 
+          src={`/contents/${choiceData.background}`} 
+          alt="배경" 
+          className={`choice-background ${isBackgroundPreloaded ? 'loaded' : 'loading'}`}
+          loading="eager"
+          onLoad={() => {
+            if (!preloadedImages.has(choiceData.background)) {
+              setPreloadedImages(prev => new Set([...prev, choiceData.background]));
+            }
+          }}
+          style={{
+            opacity: isBackgroundPreloaded ? 1 : 0,
+            transition: 'opacity 0.3s ease-in-out'
+          }}
+        />
         {choiceData.choices.map((choice, index) => {
           // 정사각형 배경 기준으로 위치와 크기 계산
           const squareSize = Math.min(window.innerWidth, window.innerHeight);
@@ -471,12 +678,20 @@ function App() {
           const width = choice.size.width * squareSize; // 정사각형 배경 대비 비율로 적용
           const height = choice.size.height * squareSize;
           
+          const isChoiceImagePreloaded = preloadedImages.has(choice.image);
+          
           return (
             <img
               key={choice.id}
               src={`/contents/${choice.image}`}
               alt={choice.id}
-              className={`choice-option choice-option-${index}`}
+              className={`choice-option choice-option-${index} ${isChoiceImagePreloaded ? 'loaded' : 'loading'}`}
+              loading="eager"
+              onLoad={() => {
+                if (!preloadedImages.has(choice.image)) {
+                  setPreloadedImages(prev => new Set([...prev, choice.image]));
+                }
+              }}
               style={{
                 position: 'absolute',
                 left: `${left}px`,
@@ -489,13 +704,16 @@ function App() {
                 maxHeight: `${height}px`,
                 width: 'auto',
                 height: 'auto',
-                transition: 'transform 0.3s ease',
-                display: 'block'
+                transition: 'transform 0.3s ease, opacity 0.3s ease-in-out',
+                display: 'block',
+                opacity: isChoiceImagePreloaded ? 1 : 0.3
               }}
               onClick={() => handleChoiceSelect(choiceData, choice.id, index)}
               onMouseEnter={(e) => {
-                e.target.style.transform = 'translate(-50%, -50%) scale(1.1)';
-                e.target.style.zIndex = 100;
+                if (isChoiceImagePreloaded) {
+                  e.target.style.transform = 'translate(-50%, -50%) scale(1.1)';
+                  e.target.style.zIndex = 100;
+                }
               }}
               onMouseLeave={(e) => {
                 e.target.style.transform = 'translate(-50%, -50%) scale(1)';
