@@ -26,7 +26,7 @@ function App() {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [currentAudioRef, setCurrentAudioRef] = useState(null);
   
-  // 이미지 프리로딩 관련 상태
+  // 이미지 프리로딩 관련 상태 - 다시 상태로 복원
   const [preloadedImages, setPreloadedImages] = useState(new Set());
   const [imageCache, setImageCache] = useState(new Map());
 
@@ -47,148 +47,62 @@ function App() {
     return canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
   }, []);
 
-  // 최적화된 이미지 URL 생성
+  // 최적화된 이미지 URL 생성 - WebP 비활성화 (테스트용)
   const getOptimizedImageUrl = useCallback((fileName) => {
     const basePath = `/contents/${fileName}`;
-    const ext = fileName.toLowerCase().split('.').pop();
-    
-    // WebP를 지원하고 원본이 PNG/JPG인 경우 WebP 버전 시도
-    if (supportsWebP() && ['png', 'jpg', 'jpeg'].includes(ext)) {
-      const webpPath = basePath.replace(/\.(png|jpg|jpeg)$/i, '.webp');
-      return { primary: webpPath, fallback: basePath };
-    }
-    
+    // WebP 최적화 일시적으로 비활성화
     return { primary: basePath, fallback: null };
-  }, [supportsWebP]);
+  }, []);
 
-  // 이미지 프리로딩 함수 (WebP 지원)
+  // 이미지 프리로딩 함수 - 의존성 제거하여 무한 루프 방지
   const preloadImage = useCallback((fileName) => {
     return new Promise((resolve, reject) => {
-      if (preloadedImages.has(fileName)) {
-        resolve(imageCache.get(fileName));
-        return;
-      }
-
-      const { primary, fallback } = getOptimizedImageUrl(fileName);
+      const basePath = `/contents/${fileName}`;
       const img = new Image();
       
-      const tryLoadImage = (url, isFallback = false) => {
-        img.onload = () => {
-          setPreloadedImages(prev => new Set([...prev, fileName]));
-          setImageCache(prev => new Map([...prev, [fileName, img]]));
-          resolve(img);
-        };
-        
-        img.onerror = () => {
-          if (!isFallback && fallback) {
-            // WebP 실패 시 원본 이미지로 fallback
-            tryLoadImage(fallback, true);
-          } else {
-            console.warn(`이미지 프리로드 실패: ${fileName}`);
-            reject(new Error(`Failed to preload ${fileName}`));
-          }
-        };
-        
-        img.src = url;
+      img.onload = () => {
+        // 상태 업데이트로 리렌더링 트리거
+        setPreloadedImages(prev => new Set([...prev, fileName]));
+        setImageCache(prev => new Map([...prev, [fileName, img]]));
+        resolve(img);
       };
       
-      tryLoadImage(primary);
+      img.onerror = () => {
+        console.warn(`이미지 프리로드 실패: ${fileName}`);
+        reject(new Error(`Failed to preload ${fileName}`));
+      };
+      
+      img.src = basePath;
     });
-  }, [preloadedImages, imageCache, getOptimizedImageUrl]);
+  }, []); // 의존성 완전히 제거
 
-  // 다음 이미지들 프리로딩
-  const preloadNextImages = useCallback(async () => {
-    if (!files.length) return;
-    
-    const imagesToPreload = [];
-    const preloadRange = 3; // 다음 3개 이미지까지 프리로드
-    
-    for (let i = currentIndex + 1; i <= Math.min(currentIndex + preloadRange, files.length - 1); i++) {
-      const file = files[i];
-      
-      if (typeof file === 'string' && getFileType(file) === 'image') {
-        imagesToPreload.push(file);
-      } else if (typeof file === 'object') {
-        // choice나 다른 객체 타입에서 이미지 추출
-        if (file.background && getFileType(file.background) === 'image') {
-          imagesToPreload.push(file.background);
-        }
-        if (file.choices) {
-          file.choices.forEach(choice => {
-            if (choice.image && getFileType(choice.image) === 'image') {
-              imagesToPreload.push(choice.image);
-            }
-            if (choice.results && getFileType(choice.results) === 'image') {
-              imagesToPreload.push(choice.results);
-            }
-          });
-        }
-      }
-    }
-    
-    // 중복 제거 및 이미 로드된 이미지 제외
-    const uniqueImages = [...new Set(imagesToPreload)].filter(img => !preloadedImages.has(img));
-    
-    if (uniqueImages.length > 0) {
-      // 서비스 워커에 프리로딩 요청
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        const imageUrls = uniqueImages.map(img => `/contents/${img}`);
-        navigator.serviceWorker.controller.postMessage({
-          type: 'PRELOAD_IMAGES',
-          urls: imageUrls
-        });
-      }
-      
-      // 병렬로 프리로드 (최대 3개씩)
-      const batchSize = 3;
-      for (let i = 0; i < uniqueImages.length; i += batchSize) {
-        const batch = uniqueImages.slice(i, i + batchSize);
-        try {
-          await Promise.allSettled(batch.map(img => preloadImage(img)));
-        } catch (error) {
-          console.warn('이미지 프리로드 배치 실패:', error);
-        }
-      }
-    }
-  }, [files, currentIndex, getFileType, preloadImage, preloadedImages]);
+  // 다음 이미지들 프리로딩 - 완전히 제거 (무한 루프 방지)
+  // 이 함수는 사용하지 않음
 
-  // 현재 인덱스 변경 시 다음 이미지들 프리로드
+  // 프리로딩 완전히 비활성화 (테스트용)
+  // useEffect(() => {
+  //   // 프리로딩 비활성화
+  // }, []);
+
+  // 파일 로드 (간소화) - 완전히 의존성 제거
   useEffect(() => {
-    if (testStarted) {
-      preloadNextImages();
-    }
-  }, [currentIndex, testStarted, preloadNextImages]);
-
-  // 파일 로드 (간소화)
-  const loadFiles = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/contents/order.json');
-      const data = await response.json();
-      const loadedFiles = data.order || [];
-      setFiles(loadedFiles);
-      setSoundSections(data.soundSections || []); // soundSections 로드
-      
-      // 첫 번째 이미지 즉시 프리로드
-      if (loadedFiles.length > 0) {
-        const firstFile = loadedFiles[0];
-        if (typeof firstFile === 'string' && getFileType(firstFile) === 'image') {
-          preloadImage(firstFile).catch(console.warn);
-        } else if (typeof firstFile === 'object' && firstFile.background) {
-          preloadImage(firstFile.background).catch(console.warn);
-        }
+    const loadFiles = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/contents/order.json');
+        const data = await response.json();
+        const loadedFiles = data.order || [];
+        setFiles(loadedFiles);
+        setSoundSections(data.soundSections || []); // soundSections 로드
+        setError(null);
+      } catch (err) {
+        setError('파일을 불러오는데 실패했습니다.');
+        console.error('Error loading files:', err);
+      } finally {
+        setLoading(false);
       }
-      
-      setError(null);
-    } catch (err) {
-      setError('파일을 불러오는데 실패했습니다.');
-      console.error('Error loading files:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [getFileType, preloadImage]);
+    };
 
-  useEffect(() => {
     loadFiles();
     
     // 서비스 워커 등록
@@ -201,7 +115,7 @@ function App() {
           console.log('서비스 워커 등록 실패:', error);
         });
     }
-  }, [loadFiles]);
+  }, []); // 완전히 빈 의존성 배열
 
   // 컴포넌트 언마운트 시 오디오 정리
   useEffect(() => {
@@ -454,6 +368,15 @@ function App() {
       const isPreloaded = preloadedImages.has(fileName);
       const { primary: optimizedUrl, fallback: fallbackUrl } = getOptimizedImageUrl(fileName);
       
+      // 디버깅 로그
+      console.log('이미지 렌더링:', {
+        fileName,
+        isPreloaded,
+        optimizedUrl,
+        fallbackUrl,
+        preloadedImagesSize: preloadedImages.size
+      });
+      
       return (
         <div className="image-container">
           {!isPreloaded && (
@@ -471,15 +394,34 @@ function App() {
               alt={fileName} 
               className={`media-content ${isPreloaded ? 'loaded' : 'loading'}`}
               loading="eager"
-              onLoad={() => {
+              onLoad={(e) => {
+                console.log('이미지 로드 완료:', fileName, e.target.src);
                 if (!preloadedImages.has(fileName)) {
-                  setPreloadedImages(prev => new Set([...prev, fileName]));
+                  setPreloadedImages(prev => {
+                    const newSet = new Set([...prev, fileName]);
+                    console.log('preloadedImages 업데이트:', newSet);
+                    return newSet;
+                  });
                 }
               }}
               onError={(e) => {
+                console.error('이미지 로드 실패:', fileName, e.target.src);
                 // WebP 실패 시 fallback 이미지로 전환
                 if (fallbackUrl && e.target.src !== fallbackUrl) {
+                  console.log('WebP 실패, fallback으로 전환:', fallbackUrl);
                   e.target.src = fallbackUrl;
+                } else {
+                  console.error('이미지 로드 완전 실패:', fileName);
+                  // 테스트용 더미 이미지로 대체
+                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7snbTrr7jsp4Ag7JeG7J2MPC90ZXh0Pjwvc3ZnPg==';
+                  // 상태 업데이트하여 로딩 완료로 처리
+                  if (!preloadedImages.has(fileName)) {
+                    setPreloadedImages(prev => {
+                      const newSet = new Set([...prev, fileName]);
+                      console.log('더미 이미지로 preloadedImages 업데이트:', newSet);
+                      return newSet;
+                    });
+                  }
                 }
               }}
               style={{

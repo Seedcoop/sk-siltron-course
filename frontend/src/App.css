@@ -31,12 +31,16 @@ body {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  padding-bottom: 120px; /* 네비게이션 바 공간 확보 */
 }
 
 .media-content {
   max-width: 100%;
-  max-height: 100%;
+  max-height: calc(100vh - 160px); /* 네비게이션 바와 여백을 더 여유롭게 */
+  width: auto;
+  height: auto;
   object-fit: contain;
+  display: block;
 }
 
 /* 이미지 컨테이너 및 로딩 */

@@ -57,7 +57,7 @@ async function handleCacheableRequest(request) {
     const now = new Date();
     
     if (now - cachedDate < CACHE_EXPIRY) {
-      console.log('캐시에서 반환:', request.url);
+      // 캐시 히트 로그 완전히 제거 (성능 향상)
       return cachedResponse;
     } else {
       // 만료된 캐시 삭제
