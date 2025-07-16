@@ -32,9 +32,36 @@ function App() {
   // 오디오 프리로딩 및 캐싱
   const [audioCache, setAudioCache] = useState(new Map());
   
-  // Choice 배경 이미지 관련 상태
-  const [choiceBackgroundLoaded, setChoiceBackgroundLoaded] = useState(false);
-  const choiceBackgroundRef = useRef(null);
+  // CSS 변수 설정을 위한 상태
+  const [viewportSize, setViewportSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  // CSS 변수 설정 - 뷰포트 크기 변경 시 업데이트
+  useEffect(() => {
+    const updateViewportSize = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      
+      setViewportSize({ width: vw, height: vh });
+      
+      // CSS 커스텀 속성으로 뷰포트 크기 설정
+      document.documentElement.style.setProperty('--actual-vw', `${vw}px`);
+      document.documentElement.style.setProperty('--actual-vh', `${vh}px`);
+      
+      console.log(`📐 CSS 변수 설정: --actual-vw=${vw}px, --actual-vh=${vh}px`);
+    };
+
+    // 초기 설정
+    updateViewportSize();
+
+    // 리사이즈 이벤트 리스너
+    window.addEventListener('resize', updateViewportSize);
+    window.addEventListener('orientationchange', updateViewportSize);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportSize);
+      window.removeEventListener('orientationchange', updateViewportSize);
+    };
+  }, []);
 
   // 모바일 감지
   const isMobile = useCallback(() => {
@@ -589,18 +616,6 @@ function App() {
   };
 
   const renderChoice = (choiceData) => {
-    // CSS 변수 설정으로 JavaScript와 CSS 동기화
-    useEffect(() => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      
-      // CSS 커스텀 속성으로 뷰포트 크기 설정
-      document.documentElement.style.setProperty('--actual-vw', `${vw}px`);
-      document.documentElement.style.setProperty('--actual-vh', `${vh}px`);
-      
-      console.log(`📐 CSS 변수 설정: --actual-vw=${vw}px, --actual-vh=${vh}px`);
-    }, []);
-    
     return (
       <div className="choice-screen">
         <img 
