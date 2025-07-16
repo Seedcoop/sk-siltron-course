@@ -7,14 +7,14 @@
       "end": 8
     },
     {
-      "type": "sound_section", 
+      "type": "sound_section",
       "sound": "팹.webm",
       "start": 9,
       "end": 13
     },
     {
       "type": "sound_section",
-      "sound": "상황실.webm", 
+      "sound": "상황실.webm",
       "start": 14,
       "end": 18
     },
@@ -69,7 +69,6 @@
     {
       "type": "choice",
       "background": "fap/팹배경.webp",
-      "question": "당신은 ... ",
       "choices": [
         {
           "id": "eye",
@@ -85,7 +84,7 @@
           "results": "fap/팹_눈.png"
         },
         {
-          "id": "book", 
+          "id": "book",
           "image": "fap/팹2.webp",
           "position": {
             "x": 0.5,
@@ -112,7 +111,6 @@
     {
       "type": "choice",
       "background": "emergency/상황실배경.webp",
-      "question": "당신은 ... ",
       "choices": [
         {
           "id": "eye",
@@ -128,7 +126,7 @@
           "results": "emergency/상황실_눈.png"
         },
         {
-          "id": "note", 
+          "id": "note",
           "image": "emergency/상황실2.webp",
           "position": {
             "x": 0.5,
@@ -149,14 +147,12 @@
       "previousText": "다시 선택하고 싶어요.",
       "delay": 3000
     },
-
     "promote/홍보실1.webm",
     "promote/홍보실2.webm",
     "promote/슬라이드14.png",
     {
       "type": "choice",
       "background": "promote/홍보실배경.webp",
-      "question": "당신은 ... ",
       "choices": [
         {
           "id": "hands",
@@ -172,7 +168,7 @@
           "results": "promote/홍보실_악수.png"
         },
         {
-          "id": "pallete", 
+          "id": "pallete",
           "image": "promote/홍보실2.webp",
           "position": {
             "x": 0.5,
@@ -193,14 +189,12 @@
       "previousText": "다시 선택하고 싶어요.",
       "delay": 3000
     },
-
     "QC/QC1.webm",
     "QC/QC2.webm",
     "QC/슬라이드16.png",
     {
       "type": "choice",
       "background": "QC/QC배경.webp",
-      "question": "당신은 ... ",
       "choices": [
         {
           "id": "book",
@@ -216,7 +210,7 @@
           "results": "QC/QC_책.png"
         },
         {
-          "id": "hammer", 
+          "id": "hammer",
           "image": "QC/QC2.webp",
           "position": {
             "x": 0.5,
@@ -237,14 +231,12 @@
       "previousText": "다시 선택하고 싶어요.",
       "delay": 3000
     },
-
     "research/연구실1.webm",
     "research/연구실2.webm",
     "research/슬라이드18.png",
     {
       "type": "choice",
       "background": "research/연구실배경.webp",
-      "question": "당신은 ... ",
       "choices": [
         {
           "id": "note",
@@ -260,7 +252,7 @@
           "results": "research/연구실_노트.png"
         },
         {
-          "id": "pallete", 
+          "id": "pallete",
           "image": "research/연구실2.webp",
           "position": {
             "x": 0.5,
@@ -281,14 +273,12 @@
       "previousText": "다시 선택하고 싶어요.",
       "delay": 3000
     },
-
     "tech/공정기술실1.webm",
     "tech/공정기술실2.webm",
     "tech/슬라이드20.png",
     {
       "type": "choice",
       "background": "tech/공정기술실배경.webp",
-      "question": "당신은 ... ",
       "choices": [
         {
           "id": "hammer",
@@ -304,7 +294,7 @@
           "results": "tech/공정기술실_망치.png"
         },
         {
-          "id": "hands", 
+          "id": "hands",
           "image": "tech/공정기술실2.webp",
           "position": {
             "x": 0.5,
@@ -325,7 +315,6 @@
       "previousText": "다시 선택하고 싶어요.",
       "delay": 3000
     },
-
     "슬라이드22.png",
     {
       "type": "choice_summary",

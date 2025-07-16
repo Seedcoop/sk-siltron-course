@@ -746,7 +746,6 @@ function App() {
     return (
       <div className="choice-screen">
         <img src={backgroundUrl} alt="배경" className="choice-background" />
-        <h2 className="choice-question">{choiceData.question}</h2>
         <div className="choice-container">
           {choiceData.choices.map((choice) => {
             const imageUrl = `${API_BASE_URL}/static/${safeEncodeURI(choice.image)}`;
