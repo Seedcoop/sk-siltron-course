@@ -595,36 +595,34 @@ function App() {
         />
         {choiceData.choices.map((choice, index) => {
           // CSS와 완전히 동일한 계산: min(100vw, 100vh)
-          const viewportWidth = window.innerWidth;
-          const viewportHeight = window.innerHeight;
+          // 모바일과 PC 구분 없이 동일한 로직 적용
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
           
-          // 배경 이미지와 동일한 정사각형 크기 (CSS와 일치)
-          const squareSize = Math.min(viewportWidth, viewportHeight);
+          // CSS min(100vw, 100vh)와 정확히 동일한 계산
+          const squareSize = Math.min(vw, vh);
           
-          // 정사각형 배경의 중앙 정렬을 위한 오프셋
-          const offsetX = (viewportWidth - squareSize) / 2;
-          const offsetY = (viewportHeight - squareSize) / 2;
+          // 정사각형이 화면 중앙에 위치하도록 오프셋 계산
+          const offsetX = (vw - squareSize) / 2;
+          const offsetY = (vh - squareSize) / 2;
           
-          // choice.position은 0~1 사이의 비율값 (정사각형 배경 기준)
+          // choice.position 비율을 정사각형 크기에 적용
           const absoluteX = offsetX + (choice.position.x * squareSize);
           const absoluteY = offsetY + (choice.position.y * squareSize);
           
-          // choice.size도 0~1 사이의 비율값 (정사각형 배경 기준)
+          // choice.size 비율을 정사각형 크기에 적용
           const maxWidth = choice.size.width * squareSize;
           const maxHeight = choice.size.height * squareSize;
           
-          // 디버깅 로그
-          console.log(`Choice ${index} 위치 (CSS 일치):`, {
-            device: isMobile() ? 'Mobile' : 'PC',
-            viewportWidth,
-            viewportHeight,
-            squareSize,
-            offsetX,
-            offsetY,
-            absoluteX,
-            absoluteY,
-            choicePosition: choice.position,
-            choiceSize: choice.size
+          // 상세 디버깅 로그
+          console.log(`🎯 Choice ${index} (${choice.id}) 위치 계산:`, {
+            device: isMobile() ? '📱 Mobile' : '💻 PC',
+            viewport: `${vw}x${vh}`,
+            squareSize: `${squareSize}px`,
+            offset: `(${offsetX}, ${offsetY})`,
+            position: `${choice.position.x}, ${choice.position.y}`,
+            absolute: `(${absoluteX}, ${absoluteY})`,
+            size: `${maxWidth}x${maxHeight}`
           });
           
           return (
