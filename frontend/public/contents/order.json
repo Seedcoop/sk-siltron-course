@@ -197,7 +197,7 @@
           "image": "QC/QC1.webp",
           "position": {
             "x": 0.5,
-            "y": 0.45
+            "y": 0.65
           },
           "size": {
             "width": 0.8,
@@ -210,7 +210,7 @@
           "image": "QC/QC2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.75
+            "y": 0.9
           },
           "size": {
             "width": 0.8,
