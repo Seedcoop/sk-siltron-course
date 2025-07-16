@@ -71,7 +71,7 @@
           "image": "fap/팹1.webp",
           "position": {
             "x": 0.5,
-            "y": 0.5
+            "y": 0.45
           },
           "size": {
             "width": 0.8,
@@ -84,7 +84,7 @@
           "image": "fap/팹2.webp",
           "position": {
             "x": 0.5,
-            "y": 0.8
+            "y": 0.75
           },
           "size": {
             "width": 0.8,

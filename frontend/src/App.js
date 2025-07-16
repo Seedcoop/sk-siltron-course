@@ -592,79 +592,41 @@ function App() {
     return (
       <div className="choice-screen">
         <img 
-          ref={choiceBackgroundRef}
           src={`/contents/${choiceData.background}`} 
           alt="배경" 
           className="choice-background"
           loading="eager"
-          onLoad={() => {
-            setChoiceBackgroundLoaded(true);
-            console.log('🖼️ 배경 이미지 로드 완료, choice 위치 재계산');
-            
-            // 배경 이미지 로드 후 잠시 대기하여 DOM 업데이트 완료 후 위치 재계산
-            setTimeout(() => {
-              if (choiceBackgroundRef.current) {
-                const bgRect = choiceBackgroundRef.current.getBoundingClientRect();
-                console.log('🎯 배경 이미지 실제 크기:', {
-                  width: bgRect.width,
-                  height: bgRect.height,
-                  left: bgRect.left,
-                  top: bgRect.top
-                });
-              }
-            }, 100);
-          }}
         />
         {choiceData.choices.map((choice, index) => {
-          // 배경 이미지가 로드되고 ref가 있으면 실제 크기 기준으로 계산
-          let position;
+          // 간단한 비율 기반 계산 - CSS와 완전히 동일
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
           
-          if (choiceBackgroundLoaded && choiceBackgroundRef.current) {
-            const bgRect = choiceBackgroundRef.current.getBoundingClientRect();
-            
-            // 배경 이미지의 실제 렌더링된 크기와 위치 기준
-            const absoluteX = bgRect.left + (choice.position.x * bgRect.width);
-            const absoluteY = bgRect.top + (choice.position.y * bgRect.height);
-            const maxWidth = choice.size.width * bgRect.width;
-            const maxHeight = choice.size.height * bgRect.height;
-            
-            position = {
-              left: absoluteX,
-              top: absoluteY,
-              maxWidth,
-              maxHeight
-            };
-            
-            console.log(`🎯 Choice ${index} (${choice.id}) 실제 배경 기준:`, {
-              device: isMobile() ? '📱 Mobile' : '💻 PC',
-              backgroundRect: `${bgRect.width}x${bgRect.height} at (${bgRect.left}, ${bgRect.top})`,
-              position: `${choice.position.x}, ${choice.position.y}`,
-              absolute: `(${absoluteX}, ${absoluteY})`,
-              size: `${maxWidth}x${maxHeight}`
-            });
-          } else {
-            // 배경 이미지가 아직 로드되지 않았으면 CSS 기준으로 계산
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const squareSize = Math.min(vw, vh);
-            const offsetX = (vw - squareSize) / 2;
-            const offsetY = (vh - squareSize) / 2;
-            
-            position = {
-              left: offsetX + (choice.position.x * squareSize),
-              top: offsetY + (choice.position.y * squareSize),
-              maxWidth: choice.size.width * squareSize,
-              maxHeight: choice.size.height * squareSize
-            };
-            
-            console.log(`🎯 Choice ${index} (${choice.id}) CSS 기준 (임시):`, {
-              device: isMobile() ? '📱 Mobile' : '💻 PC',
-              viewport: `${vw}x${vh}`,
-              squareSize,
-              position: `${choice.position.x}, ${choice.position.y}`,
-              absolute: `(${position.left}, ${position.top})`
-            });
-          }
+          // 배경 이미지 크기 (CSS: min(100vw, 100vh))
+          const backgroundSize = Math.min(vw, vh);
+          
+          // 배경 이미지 위치 (화면 중앙)
+          const backgroundLeft = (vw - backgroundSize) / 2;
+          const backgroundTop = (vh - backgroundSize) / 2;
+          
+          // choice 위치 = 배경 위치 + (비율 × 배경 크기)
+          const choiceX = backgroundLeft + (choice.position.x * backgroundSize);
+          const choiceY = backgroundTop + (choice.position.y * backgroundSize);
+          
+          // choice 크기 = 비율 × 배경 크기
+          const choiceWidth = choice.size.width * backgroundSize;
+          const choiceHeight = choice.size.height * backgroundSize;
+          
+          // 디버깅 로그
+          console.log(`🎯 Choice ${index} (${choice.id}):`, {
+            device: isMobile() ? '📱 Mobile' : '💻 PC',
+            viewport: `${vw}×${vh}`,
+            backgroundSize: `${backgroundSize}px`,
+            backgroundPos: `(${backgroundLeft}, ${backgroundTop})`,
+            choicePos: `(${choiceX}, ${choiceY})`,
+            choiceSize: `${choiceWidth}×${choiceHeight}`,
+            ratios: `pos(${choice.position.x}, ${choice.position.y}) size(${choice.size.width}, ${choice.size.height})`
+          });
           
           return (
             <img
@@ -675,13 +637,13 @@ function App() {
               loading="eager"
               style={{
                 position: 'absolute',
-                left: `${position.left}px`,
-                top: `${position.top}px`,
+                left: `${choiceX}px`,
+                top: `${choiceY}px`,
                 transform: 'translate(-50%, -50%)',
                 cursor: 'pointer',
                 zIndex: 10 + index,
-                maxWidth: `${position.maxWidth}px`,
-                maxHeight: `${position.maxHeight}px`,
+                maxWidth: `${choiceWidth}px`,
+                maxHeight: `${choiceHeight}px`,
                 width: 'auto',
                 height: 'auto',
                 transition: 'transform 0.3s ease'
