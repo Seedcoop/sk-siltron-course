@@ -531,7 +531,7 @@ async def get_choice_results():
 
 @app.post("/api/save-choice")
 async def save_choice(choice_data: dict):
-    """선택지 결과를 저장하고 브라우저 캐싱용 데이터도 반환"""
+    """브라우저 캐싱용 데이터만 반환 (파일 저장 없음)"""
     try:
         choice_id = choice_data.get('choice_id')
         selected_id = choice_data.get('selected_id')
@@ -540,46 +540,40 @@ async def save_choice(choice_data: dict):
         if not choice_id or not selected_id:
             raise HTTPException(status_code=400, detail="choice_id와 selected_id가 필요합니다")
         
-        result_data = {
-            "choice_id": choice_id,
-            "selected_id": selected_id,
-            "choice_index": choice_index,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        results_file = CONTENTS_DIR / "choice_results.json"
-        existing_data = {"choices": []}
-        if results_file.exists():
-            try:
-                async with aiofiles.open(results_file, 'r', encoding='utf-8') as f:
-                    existing_data = json.loads(await f.read())
-            except json.JSONDecodeError:
-                pass
-        
-        if "choices" not in existing_data:
-            existing_data["choices"] = []
-        
-        existing_data["choices"] = [c for c in existing_data["choices"] if c.get("choice_id") != choice_id]
-        
-        existing_data["choices"].append(result_data)
-        
-        async with aiofiles.open(results_file, 'w', encoding='utf-8') as f:
-            await f.write(json.dumps(existing_data, ensure_ascii=False, indent=2))
-        
+        # 브라우저 캐시용 데이터만 생성
         cache_data = {
             "userChoices": {
                 "timestamp": datetime.now().isoformat(),
-                "choices": {item["choice_id"]: item["selected_id"] for item in existing_data["choices"]}
+                "choices": {choice_id: selected_id}
             }
         }
         
         return {
-            "message": "선택지 결과가 저장되었습니다", 
-            "result": result_data,
+            "message": "선택지 결과가 처리되었습니다", 
             "cacheData": cache_data
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"선택지 저장에 실패했습니다: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"선택지 처리에 실패했습니다: {str(e)}")
+
+@app.delete("/api/delete-choice/{choice_id}")
+async def delete_choice(choice_id: str):
+    """브라우저 캐시 삭제용 빈 데이터 반환"""
+    try:
+        # 빈 캐시 데이터 반환
+        cache_data = {
+            "userChoices": {
+                "timestamp": datetime.now().isoformat(),
+                "choices": {}
+            }
+        }
+        
+        return {
+            "message": "선택지 결과가 삭제되었습니다",
+            "deleted_count": 1,
+            "cacheData": cache_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"선택지 삭제에 실패했습니다: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
@@ -592,4 +586,4 @@ if __name__ == "__main__":
         http="httptools",  # HTTP 성능 최적화
         access_log=False,  # 로그 오버헤드 감소
         timeout_keep_alive=30  # Keep-Alive 연결 유지
-    ) 
+    )

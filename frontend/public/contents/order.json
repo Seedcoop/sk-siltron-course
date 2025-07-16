@@ -1,0 +1,321 @@
+{
+  "soundSections": [
+    {
+      "type": "sound_section",
+      "sound": "배경음악1.webm",
+      "start": 1,
+      "end": 8
+    },
+    {
+      "type": "sound_section",
+      "sound": "팹.webm",
+      "start": 9,
+      "end": 12
+    },
+    {
+      "type": "sound_section",
+      "sound": "상황실.webm",
+      "start": 15,
+      "end": 18
+    },
+    {
+      "type": "sound_section",
+      "sound": "홍보실.webm",
+      "start": 21,
+      "end": 24
+    },
+    {
+      "type": "sound_section",
+      "sound": "QC.webm",
+      "start": 27,
+      "end": 30
+    },
+    {
+      "type": "sound_section",
+      "sound": "연구실.webm",
+      "start": 33,
+      "end": 36
+    },
+    {
+      "type": "sound_section",
+      "sound": "공정기술실.webm",
+      "start": 39,
+      "end": 42
+    }
+  ],
+  "order": [
+    {
+      "type": "start_button",
+      "title": "SK 실트론 가상 투어",
+      "subtitle": "반도체 웨이퍼의 세계로 떠나는 여행",
+      "buttonText": "시작하기!",
+      "background": "0.png"
+    },
+    "1.png",
+    "2.png",
+    "3.png",
+    "4.png",
+    "5.png",
+    "6.png",
+    "7.png",
+    "8.png",
+    "fap/팹1.webm",
+    "fap/팹2.webm",
+    "fap/슬라이드10.png",
+    {
+      "type": "choice",
+      "background": "fap/팹배경.webp",
+      "choices": [
+        {
+          "id": "fap_eye",
+          "image": "fap/팹1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "fap/팹_눈.png"
+        },
+        {
+          "id": "fap_book",
+          "image": "fap/팹2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.75
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "fap/팹_책.png"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+    "emergency/상황실1.webm",
+    "emergency/상황실2.webm",
+    "emergency/슬라이드12.png",
+    {
+      "type": "choice",
+      "background": "emergency/상황실배경.webp",
+      "choices": [
+        {
+          "id": "emergency_eye",
+          "image": "emergency/상황실1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "emergency/상황실_눈.png"
+        },
+        {
+          "id": "emergency_note",
+          "image": "emergency/상황실2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.75
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "emergency/상황실_노트.png"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+    "promote/홍보실1.webm",
+    "promote/홍보실2.webm",
+    "promote/슬라이드14.png",
+    {
+      "type": "choice",
+      "background": "promote/홍보실배경.webp",
+      "choices": [
+        {
+          "id": "promote_hands",
+          "image": "promote/홍보실1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "promote/홍보실_악수.png"
+        },
+        {
+          "id": "promote_pallete",
+          "image": "promote/홍보실2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.75
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "promote/홍보실_팔레트.png"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+    "QC/QC1.webm",
+    "QC/QC2.webm",
+    "QC/슬라이드16.png",
+    {
+      "type": "choice",
+      "background": "QC/QC배경.webp",
+      "choices": [
+        {
+          "id": "QC_book",
+          "image": "QC/QC1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "QC/QC_책.png"
+        },
+        {
+          "id": "QC_hammer",
+          "image": "QC/QC2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.75
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "QC/QC_망치.png"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+    "research/연구실1.webm",
+    "research/연구실2.webm",
+    "research/슬라이드18.png",
+    {
+      "type": "choice",
+      "background": "research/연구실배경.webp",
+      "choices": [
+        {
+          "id": "research_note",
+          "image": "research/연구실1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "research/연구실_노트.png"
+        },
+        {
+          "id": "research_pallete",
+          "image": "research/연구실2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.75
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "research/연구실_팔레트.png"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+    "tech/공정기술실1.webm",
+    "tech/공정기술실2.webm",
+    "tech/슬라이드20.png",
+    {
+      "type": "choice",
+      "background": "tech/공정기술실배경.webp",
+      "choices": [
+        {
+          "id": "tech_hammer",
+          "image": "tech/공정기술실1.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.45
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "tech/공정기술실_망치.png"
+        },
+        {
+          "id": "tech_hands",
+          "image": "tech/공정기술실2.webp",
+          "position": {
+            "x": 0.5,
+            "y": 0.75
+          },
+          "size": {
+            "width": 0.8,
+            "height": 0.8
+          },
+          "results": "tech/공정기술실_악수.png"
+        }
+      ]
+    },
+    {
+      "type": "crossroad",
+      "question": "어디로 가시겠습니까?",
+      "nextText": "다음 장소는 어디일까?",
+      "previousText": "다시 선택하고 싶어요.",
+      "delay": 3000
+    },
+    "슬라이드22.png",
+    {
+      "type": "choice_summary",
+      "title": "당신이 선택한 아이템들",
+      "description": "여정을 통해 수집한 소중한 아이템들입니다."
+    }
+  ]
+}

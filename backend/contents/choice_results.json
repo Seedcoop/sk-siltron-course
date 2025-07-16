@@ -1,22 +1,10 @@
 {
   "choices": [
     {
-      "choice_id": "choice_9",
-      "selected_id": "fap",
-      "choice_index": 9,
-      "timestamp": "2025-07-13T14:29:26.525451"
-    },
-    {
-      "choice_id": "choice_undefined",
-      "selected_id": "hands",
-      "choice_index": null,
-      "timestamp": "2025-07-14T23:16:08.707757"
-    },
-    {
       "choice_id": "choice_12",
       "selected_id": "book",
       "choice_index": 12,
-      "timestamp": "2025-07-16T14:36:33.665057"
+      "timestamp": "2025-07-16T19:05:12.230943"
     }
   ]
 }

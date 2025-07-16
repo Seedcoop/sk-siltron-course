@@ -1,91 +1,32 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 function App() {
   const [files, setFiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [currentChoiceIndex, setCurrentChoiceIndex] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [preloading, setPreloading] = useState(false);
-  const [preloadProgress, setPreloadProgress] = useState(0);
-  const [preloadedMedia, setPreloadedMedia] = useState(new Map());
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  const [touchStart, setTouchStart] = useState(null);
-  const [touchEnd, setTouchEnd] = useState(null);
-  const [mouseDown, setMouseDown] = useState(false);
-  const [mouseStart, setMouseStart] = useState(null);
-  const [mouseEnd, setMouseEnd] = useState(null);
-  const [quizAnswers, setQuizAnswers] = useState({});
-  const [showQuiz, setShowQuiz] = useState(false);
-  const [choiceAnswers, setChoiceAnswers] = useState({});
-  const [showChoice, setShowChoice] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
+  const [testStarted, setTestStarted] = useState(false);
+  
+  // 상태 관리
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [showChoice, setShowChoice] = useState(false);
   const [showCrossroad, setShowCrossroad] = useState(false);
-  const [crossroadPending, setCrossroadPending] = useState(false);
-  const [showReturnToChoice, setShowReturnToChoice] = useState(false);
+  const [showChoiceSummary, setShowChoiceSummary] = useState(false);
+  
+  // 답변 저장
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [choiceAnswers, setChoiceAnswers] = useState({});
+  
+  // 오디오 관련 상태
   const [soundSections, setSoundSections] = useState([]);
   const [currentAudio, setCurrentAudio] = useState(null);
-  const [audioInitialized, setAudioInitialized] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [showChoiceSummary, setShowChoiceSummary] = useState(false);
-  const [progressiveImages, setProgressiveImages] = useState(new Map());
-  const [isMobile, setIsMobile] = useState(false);
-  const [connectionSpeed, setConnectionSpeed] = useState('fast');
-  const [windowDimensions, setWindowDimensions] = useState({
-    width: window.innerWidth,
-    height: window.innerHeight
-  });
-  const [testStarted, setTestStarted] = useState(false); // <-- NEW STATE
-  const containerRef = useRef(null);
-  const audioRef = useRef(null);
+  const [audioInitialized, setAudioInitialized] = useState(false);
+  const [currentAudioRef, setCurrentAudioRef] = useState(null);
 
-  // 모바일 및 연결 속도 감지
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      setIsMobile(mobile);
-      
-      // 연결 속도 감지 (Network Information API)
-      if ('connection' in navigator) {
-        const connection = navigator.connection;
-        const effectiveType = connection.effectiveType;
-        
-        if (effectiveType === 'slow-2g' || effectiveType === '2g') {
-          setConnectionSpeed('slow');
-        } else if (effectiveType === '3g') {
-          setConnectionSpeed('medium');
-        } else {
-          setConnectionSpeed('fast');
-        }
-        
-        console.log(`📱 Device: ${mobile ? 'Mobile' : 'Desktop'}, Connection: ${effectiveType}`);
-      }
-    };
-    
-    checkMobile();
-  }, []);
-
-  // 윈도우 크기 변경 감지 (choice 화면 반응형 대응)
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowDimensions({
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const safeEncodeURI = useCallback((path) => {
-    return path.split('/').map(encodeURIComponent).join('/');
-  }, []);
-
+  // 파일 타입 확인
   const getFileType = useCallback((filename) => {
     const ext = filename.toLowerCase().split('.').pop();
     if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(ext)) return 'image';
@@ -94,245 +35,14 @@ function App() {
     return 'unknown';
   }, []);
 
-  // Progressive Loading 함수 (Hook이 아님)
-  const startProgressiveLoading = useCallback((src) => {
-    const fileType = getFileType(src);
-    if (fileType !== 'image') {
-      return;
-    }
-
-    // 이미 처리 중이거나 완료된 이미지는 건너뛰기
-    if (progressiveImages.has(src)) {
-      return;
-    }
-
-    // 썸네일과 원본 이미지 로딩
-    const loadProgressiveImage = async () => {
-      try {
-        // 초기 로딩 상태 설정
-        setProgressiveImages(prev => new Map(prev).set(src, { 
-          src: null, 
-          loading: true,
-          isThumb: false 
-        }));
-
-        // 1단계: 모바일 최적화 썸네일 로드
-        const thumbSize = isMobile ? 150 : 200;
-        const thumbQuality = connectionSpeed === 'slow' ? 50 : (connectionSpeed === 'medium' ? 60 : 70);
-        const thumbSrc = `${API_BASE_URL}/api/thumbnail/${safeEncodeURI(src)}?size=${thumbSize}&quality=${thumbQuality}`;
-        
-        const thumbImg = new Image();
-        
-        const thumbPromise = new Promise((resolve) => {
-          thumbImg.onload = () => {
-            setProgressiveImages(prev => new Map(prev).set(src, { 
-              src: thumbSrc, 
-              loading: true,
-              isThumb: true 
-            }));
-            resolve(thumbSrc);
-          };
-          thumbImg.onerror = () => {
-            resolve(null);
-          };
-        });
-
-        thumbImg.src = thumbSrc;
-        const thumbResult = await thumbPromise;
-
-        if (!thumbResult) {
-          // 썸네일 로드 실패 시 원본으로 바로 시도
-          const fallbackSrc = `${API_BASE_URL}/static/${safeEncodeURI(src)}`;
-          setProgressiveImages(prev => new Map(prev).set(src, { 
-            src: fallbackSrc, 
-            loading: false,
-            isThumb: false 
-          }));
-          return;
-        }
-
-        // 2단계: 원본 이미지 백그라운드 로드
-        const fullSrc = `${API_BASE_URL}/static/${safeEncodeURI(src)}`;
-        
-        const fullImg = new Image();
-        
-        const fullPromise = new Promise((resolve) => {
-          fullImg.onload = () => {
-            setProgressiveImages(prev => new Map(prev).set(src, { 
-              src: fullSrc, 
-              loading: false,
-              isThumb: false 
-            }));
-            resolve(fullSrc);
-          };
-          fullImg.onerror = () => {
-            // 원본 로드 실패 시 썸네일 유지
-            setProgressiveImages(prev => new Map(prev).set(src, { 
-              src: thumbSrc, 
-              loading: false,
-              isThumb: true 
-            }));
-            resolve(thumbSrc);
-          };
-        });
-
-        fullImg.src = fullSrc;
-        await fullPromise;
-
-      } catch (error) {
-        const fallbackSrc = `${API_BASE_URL}/static/${safeEncodeURI(src)}`;
-        setProgressiveImages(prev => new Map(prev).set(src, { 
-          src: fallbackSrc, 
-          loading: false,
-          isThumb: false 
-        }));
-      }
-    };
-
-    // 비동기 로딩 시작
-    loadProgressiveImage();
-  }, [getFileType, safeEncodeURI, isMobile, connectionSpeed]);
-
-  const preloadingRef = useRef(false);
-
-  const preloadMedia = useCallback(async (mediaFiles) => {
-    if (mediaFiles.length === 0) return;
-    
-    if (preloadingRef.current) {
-      console.log('⏭️ Preloading already in progress, skipping');
-      return;
-    }
-    
-    preloadingRef.current = true;
-    setPreloading(true);
-    setPreloadProgress(0);
-    const mediaMap = new Map();
-    let loadedCount = 0;
-    const totalMedia = mediaFiles.length;
-    console.log(`🚀 미디어 ${totalMedia}개 로딩 시작!`);
-
-    const loadFullMedia = (fileName) => {
-      return new Promise((resolve) => {
-        const fileType = getFileType(fileName);
-        const fileUrl = `${API_BASE_URL}/static/${safeEncodeURI(fileName)}`;
-        
-        const handleLoad = (element, type) => {
-          mediaMap.set(fileName, { url: fileUrl, element, type, loaded: 'complete', preloaded: true });
-          loadedCount++;
-          setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
-          console.log(`✅ ${type} 로딩 완료: ${fileName} (${loadedCount}/${totalMedia})`);
-          resolve();
-        };
-
-        const handleError = (type) => {
-          console.error(`❌ ${type} 로딩 실패: ${fileName}`);
-          loadedCount++;
-          setPreloadProgress(Math.round((loadedCount / totalMedia) * 100));
-          resolve();
-        };
-
-        const actualUrl = isMobile && fileType === 'image' 
-          ? `${API_BASE_URL}/api/thumbnail/${safeEncodeURI(fileName)}?size=${connectionSpeed === 'slow' ? 300 : 400}&quality=85`
-          : fileUrl;
-
-        if (fileType === 'image') {
-          const img = new Image();
-          img.onload = () => handleLoad(img, 'image');
-          img.onerror = () => handleError('image');
-          img.src = actualUrl;
-        } else if (fileType === 'video' && !isMobile) {
-          const video = document.createElement('video');
-          video.preload = connectionSpeed === 'slow' ? 'metadata' : 'auto';
-          video.oncanplaythrough = () => handleLoad(video, 'video');
-          video.onerror = () => handleError('video');
-          video.src = fileUrl;
-        } else {
-          handleLoad(null, fileType);
-        }
-      });
-    };
-
-    const maxConcurrent = isMobile ? 2 : 4;
-    const chunkSize = connectionSpeed === 'slow' ? 1 : (connectionSpeed === 'medium' ? 2 : maxConcurrent);
-    
-    const filteredFiles = isMobile 
-      ? mediaFiles.filter(file => getFileType(file) === 'image').slice(0, 10)
-      : mediaFiles;
-    
-    for (let i = 0; i < filteredFiles.length; i += chunkSize) {
-      const chunk = filteredFiles.slice(i, i + chunkSize);
-      await Promise.all(chunk.map(loadFullMedia));
-      
-      if (connectionSpeed === 'slow' && i + chunkSize < filteredFiles.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-    
-    setPreloadedMedia(mediaMap);
-    setPreloading(false);
-    setInitialLoadComplete(true);
-    preloadingRef.current = false;
-    console.log(`🎉 ${isMobile ? '모바일' : '데스크톱'} ${filteredFiles.length}개 파일 로딩 완료!`);
-  }, [getFileType, safeEncodeURI, isMobile, connectionSpeed, API_BASE_URL]);
-
-  const preloadSingleMedia = useCallback(async (fileName) => {
-    if (preloadedMedia.has(fileName)) return;
-
-    const fileType = getFileType(fileName);
-    if (fileType !== 'image' && fileType !== 'video') {
-        return;
-    }
-    
-    const fileUrl = `${API_BASE_URL}/static/${safeEncodeURI(fileName)}`;
-
-    return new Promise((resolve) => {
-        const handleLoad = (element, type) => {
-            setPreloadedMedia(prevMap => new Map(prevMap).set(fileName, { url: fileUrl, element, type, loaded: 'complete', preloaded: true }));
-            resolve();
-        };
-
-        const handleError = (type) => {
-            resolve();
-        };
-
-        if (fileType === 'image') {
-            const img = new Image();
-            img.onload = () => handleLoad(img, 'image');
-            img.onerror = () => handleError('image');
-            img.src = fileUrl;
-        } else if (fileType === 'video') {
-            const video = document.createElement('video');
-            video.preload = 'auto';
-            video.oncanplaythrough = () => handleLoad(video, 'video');
-            video.onerror = () => handleError('video');
-            video.src = fileUrl;
-        }
-    });
-  }, [preloadedMedia, getFileType, safeEncodeURI]);
-
+  // 파일 로드 (간소화)
   const loadFiles = useCallback(async () => {
     try {
       setLoading(true);
-      const [filesResponse, orderResponse] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/files`),
-        axios.get(`${API_BASE_URL}/api/order`)
-      ]);
-      setFiles(filesResponse.data);
-      setSoundSections(orderResponse.data.soundSections || []);
-      const mediaFiles = filesResponse.data.filter(item => typeof item === 'string' && getFileType(item) !== 'unknown');
-      if (mediaFiles.length > 0) {
-        // 모바일에서는 이미지만 초기 로딩 (비디오 제외)
-        if (isMobile) {
-          const imageFiles = mediaFiles.filter(file => getFileType(file) === 'image').slice(0, 8);
-          if (imageFiles.length > 0) {
-            await preloadMedia(imageFiles);
-          }
-          // 모바일에서는 이미지 프리로딩 후 즉시 완료 체크
-          setInitialLoadComplete(true);
-        } else {
-          await preloadMedia(mediaFiles);
-        }
-      }
+      const response = await fetch('/contents/order.json');
+      const data = await response.json();
+      setFiles(data.order || []);
+      setSoundSections(data.soundSections || []); // soundSections 로드
       setError(null);
     } catch (err) {
       setError('파일을 불러오는데 실패했습니다.');
@@ -340,740 +50,679 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [preloadMedia, getFileType, isMobile]);
+  }, []);
 
   useEffect(() => {
     loadFiles();
   }, [loadFiles]);
 
-  // 오디오 초기화 및 사용자 상호작용 처리
-  const initializeAudio = useCallback(() => {
-    if (!audioInitialized && userInteracted) {
+  // 컴포넌트 언마운트 시 오디오 정리
+  useEffect(() => {
+    return () => {
+      if (currentAudioRef) {
+        currentAudioRef.pause();
+        currentAudioRef.currentTime = 0;
+      }
+    };
+  }, [currentAudioRef]);
+
+  // 오디오 초기화
+  useEffect(() => {
+    if (userInteracted && !audioInitialized) {
       setAudioInitialized(true);
     }
-  }, [audioInitialized, userInteracted]);
+  }, [userInteracted, audioInitialized]);
 
+  // 현재 인덱스에 따른 배경음 재생
   useEffect(() => {
-    initializeAudio();
-  }, [initializeAudio]);
+    if (!audioInitialized || !soundSections.length || !testStarted) return;
 
-  // 뮤트 토글
+    // 현재 인덱스에 해당하는 사운드 섹션 찾기
+    const currentSection = soundSections.find(section => {
+      const start = section.start;
+      const end = section.end === -1 ? files.length - 1 : section.end;
+      return currentIndex >= start && currentIndex <= end;
+    });
+
+    // 현재 섹션의 사운드가 바뀌었을 때만 처리
+    const newSoundFile = currentSection ? currentSection.sound : null;
+    
+    if (newSoundFile !== currentAudio) {
+      // 이전 오디오 정리
+      if (currentAudioRef) {
+        currentAudioRef.pause();
+        currentAudioRef.currentTime = 0;
+        setCurrentAudioRef(null);
+      }
+
+      setCurrentAudio(newSoundFile);
+
+      // 새 오디오 재생 (음소거가 아닐 때만)
+      if (newSoundFile && !isMuted) {
+        const audio = new Audio(`/contents/sounds/${newSoundFile}`);
+        audio.loop = true;
+        audio.volume = 0.3;
+        
+        audio.play().then(() => {
+          setCurrentAudioRef(audio);
+          console.log(`사운드 재생 시작: ${newSoundFile} (인덱스: ${currentIndex})`);
+        }).catch(error => {
+          console.log('오디오 재생 실패:', error);
+        });
+      }
+    }
+  }, [currentIndex, audioInitialized, soundSections, currentAudio, isMuted, testStarted, files.length, currentAudioRef]);
+
+  // 음소거 토글
   const toggleMute = useCallback(() => {
     setIsMuted(prev => {
       const newMuted = !prev;
-      if (audioRef.current) {
-        audioRef.current.volume = newMuted ? 0 : 0.3;
-      }
-      return newMuted;
-    });
-  }, []);
-
-  // 현재 인덱스에 따른 사운드 재생
-  const playBackgroundSound = useCallback((index) => {
-    if (!audioInitialized || !soundSections.length) return;
-
-    const currentSection = soundSections.find(section => 
-      index >= section.start && (section.end === -1 || index <= section.end)
-    );
-
-    if (currentSection && currentSection.sound !== currentAudio) {
-      // 이전 오디오 정지
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-
-      // 새 오디오 재생
-      const audioUrl = `${API_BASE_URL}/static/sounds/${currentSection.sound}`;
-      const audio = new Audio(audioUrl);
-      audio.loop = true;
-      audio.volume = 0.3;
-      audio.muted = isMuted;
       
-      audio.play().then(() => {
-        setCurrentAudio(currentSection.sound);
-        audioRef.current = audio;
-      }).catch(() => {
-      });
-    }
-  }, [audioInitialized, soundSections, currentAudio, isMuted, API_BASE_URL]);
-
-  useEffect(() => {
-    if (audioInitialized) {
-      playBackgroundSound(currentIndex);
-    }
-  }, [currentIndex, audioInitialized, playBackgroundSound]);
-
-  // 모바일에서는 스마트 프리로딩 비활성화
-  const smartPreload = useCallback((index) => {
-    if (!files.length || isMobile) return; // 모바일에서는 완전 비활성화
-
-    const preloadRange = 3;
-    const startIndex = Math.max(0, index - 1);
-    const endIndex = Math.min(files.length, index + preloadRange + 1);
-    
-    const mediaToPreload = [];
-    
-    for (let i = startIndex; i < endIndex; i++) {
-      const file = files[i];
-      if (typeof file === 'string' && !preloadedMedia.has(file)) {
-        const fileType = getFileType(file);
-        if (fileType === 'image' || fileType === 'video') {
-          mediaToPreload.push(file);
+      if (newMuted) {
+        // 음소거 - 현재 재생 중인 오디오 일시정지
+        if (currentAudioRef) {
+          currentAudioRef.pause();
+        }
+      } else {
+        // 음소거 해제 - 현재 섹션의 오디오 재생
+        if (currentAudio && !currentAudioRef) {
+          const audio = new Audio(`/contents/sounds/${currentAudio}`);
+          audio.loop = true;
+          audio.volume = 0.3;
+          
+          audio.play().then(() => {
+            setCurrentAudioRef(audio);
+            console.log(`음소거 해제 - 사운드 재생: ${currentAudio}`);
+          }).catch(error => {
+            console.log('오디오 재생 실패:', error);
+          });
+        } else if (currentAudioRef) {
+          // 이미 오디오 객체가 있으면 재생 재개
+          currentAudioRef.play().catch(error => {
+            console.log('오디오 재생 재개 실패:', error);
+          });
         }
       }
-    }
-
-    if (mediaToPreload.length > 0) {
-      preloadMedia(mediaToPreload);
-    }
-  }, [files, getFileType, preloadedMedia, preloadMedia, isMobile]);
-
-  // 현재 인덱스 변경 시 스마트 프리로딩 실행 (debounce)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      smartPreload(currentIndex);
-    }, 100); // 100ms 지연으로 연속 호출 방지
-
-    return () => clearTimeout(timer);
-  }, [currentIndex, smartPreload]);
-
-  // 뮤트 상태 변경 시 현재 오디오 및 비디오 음소거/해제
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.muted = isMuted;
-    }
-    document.querySelectorAll('video').forEach(vid => {
-      vid.muted = isMuted;
+      
+      return newMuted;
     });
-  }, [isMuted]);
+  }, [currentAudio, currentAudioRef]);
 
+  // 현재 아이템 상태 관리 (간소화)
   useEffect(() => {
-    if (!testStarted) return; // 테스트가 시작되지 않으면 아무것도 하지 않음
+    if (!testStarted || !files.length || currentIndex >= files.length) return;
 
+    const currentItem = files[currentIndex];
+    
+    // 모든 상태 초기화
     setShowQuiz(false);
     setShowChoice(false);
     setShowCrossroad(false);
     setShowChoiceSummary(false);
 
-    if (files.length > 0 && currentIndex < files.length) {
-      const currentItem = files[currentIndex];
-      
-      if (typeof currentItem === 'object') {
-        switch (currentItem.type) {
-          case 'quiz':
-            setShowQuiz(true);
-            break;
-          case 'choice':
-            setShowChoice(true);
-            break;
-          case 'crossroad':
-            let skipIndex = currentIndex + 1;
-            while (skipIndex < files.length) {
-              const skipFile = files[skipIndex];
-              if (typeof skipFile === 'string' || (typeof skipFile === 'object' && skipFile.type !== 'crossroad')) {
-                setCurrentIndex(skipIndex);
-                break;
-              }
-              skipIndex++;
-            }
-            break;
-          case 'return_to_choice':
-            setShowReturnToChoice(true);
-            break;
-          case 'choice_summary':
-            setShowChoiceSummary(true);
-            break;
-          default:
-            break;
-        }
-      } else {
-        if (!isMobile && typeof currentItem === 'string' && !preloadedMedia.has(currentItem)) {
-          preloadMedia([currentItem]);
-        }
+    if (typeof currentItem === 'object' && currentItem.type) {
+      switch (currentItem.type) {
+        case 'quiz':
+          setShowQuiz(true);
+          break;
+        case 'choice':
+          setShowChoice(true);
+          break;
+        case 'crossroad':
+          // crossroad 화면 표시 (자동으로 넘어가지 않음)
+          setShowCrossroad(true);
+          break;
+        case 'choice_summary':
+          setShowChoiceSummary(true);
+          break;
+        default:
+          break;
       }
     }
-  }, [currentIndex, files, testStarted, isMobile, preloadMedia]);
+  }, [currentIndex, files, testStarted]);
 
-  const saveToBrowserCache = useCallback((cacheData) => {
-    try {
-      localStorage.setItem('skSiltronChoices', JSON.stringify(cacheData));
-      console.log('브라우저 캐시에 저장 완료:', cacheData);
-    } catch (error) {
-      console.error('브라우저 캐시 저장 실패:', error);
-    }
-  }, []);
-
-  // 클릭음 재생
-  const playClickSound = useCallback(() => {
-    if (audioInitialized && !isMuted) {
-      const clickAudio = new Audio(`${API_BASE_URL}/static/sounds/클릭음.webm`);
-      clickAudio.volume = 0.5;
-      clickAudio.play().catch(err => console.log('클릭음 재생 실패:', err));
-    }
-  }, [audioInitialized, isMuted, API_BASE_URL]);
-
+  // 네비게이션
   const nextFile = useCallback(() => {
     setUserInteracted(true);
-    playClickSound();
-    if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
-    setCurrentIndex(prev => (prev < files.length - 1 ? prev + 1 : prev));
-  }, [files.length, showQuiz, showChoice, showCrossroad, crossroadPending, showChoiceSummary, playClickSound]);
+    if (showQuiz || showChoice || showCrossroad || showChoiceSummary) return;
+    setCurrentIndex(prev => Math.min(prev + 1, files.length - 1));
+  }, [files.length, showQuiz, showChoice, showCrossroad, showChoiceSummary]);
 
   const prevFile = useCallback(() => {
     setUserInteracted(true);
-    playClickSound();
-    if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
-    setCurrentIndex(prev => (prev > 0 ? prev - 1 : prev));
-  }, [showQuiz, showChoice, showCrossroad, crossroadPending, showChoiceSummary, playClickSound]);
+    if (showQuiz || showChoice || showCrossroad || showChoiceSummary) return;
+    setCurrentIndex(prev => Math.max(prev - 1, 0));
+  }, [showQuiz, showChoice, showCrossroad, showChoiceSummary]);
 
-  const handleChoiceSelect = useCallback((choiceData, selectedChoiceId) => {
-    playClickSound();
-    
-    setCurrentChoiceIndex(currentIndex);
-    
-    setChoiceAnswers(prev => ({
-      ...prev,
-      [selectedChoiceId]: selectedChoiceId
-    }));
-    
-    const selectedChoice = choiceData.choices.find(c => c.id === selectedChoiceId);
-    
-    if (selectedChoice && selectedChoice.results) {
-      const resultImage = selectedChoice.results;
-      
-      const loadResultImage = async () => {
-        if (!preloadedMedia.has(resultImage)) {
-          await preloadSingleMedia(resultImage);
-        }
-        
-        const tempFiles = [...files];
-        tempFiles.splice(currentIndex + 1, 0, resultImage);
-        setFiles(tempFiles);
-        
-        setShowChoice(false);
-        setCurrentIndex(currentIndex + 1);
-        setCrossroadPending(true);
-        
-        let crossroadDelay = 5000;
-        const crossroadObj = files.slice(currentIndex + 1).find(item => typeof item === 'object' && item.type === 'crossroad');
-        if (crossroadObj && crossroadObj.delay) {
-          crossroadDelay = crossroadObj.delay;
-        }
-        
-        setTimeout(() => {
-          setShowCrossroad(true);
-        }, crossroadDelay);
-      };
-      
-      loadResultImage();
-    } else {
-      setShowChoice(false);
-      setCurrentIndex(prev => (prev < files.length - 1 ? prev + 1 : prev));
-    }
-    
-    const choiceId = `choice_${currentIndex}`;
-    axios.post(`${API_BASE_URL}/api/save-choice`, {
-      choice_id: choiceId,
-      selected_id: selectedChoiceId,
-      choice_index: currentIndex
-    })
-    .then(response => {
-      if (response.data.cacheData) {
-        saveToBrowserCache(response.data.cacheData);
-      }
-    })
-    .catch(error => {
-      console.error('선택지 저장 실패 (백그라운드):', error);
-    });
-  }, [files, currentIndex, saveToBrowserCache, preloadedMedia, preloadSingleMedia, playClickSound, API_BASE_URL]);
-
-  const handleQuizSubmit = useCallback(async (quizData, selectedOption) => {
-    playClickSound();
+  // 퀴즈 처리 (간소화)
+  const handleQuizSubmit = useCallback((quizData, selectedOption) => {
     const quizIndex = currentIndex;
+    
+    // 로컬 스토리지에 저장
+    const quizResult = {
+      quiz_number: quizIndex + 1,
+      question: quizData.question,
+      selected_option_index: selectedOption,
+      selected_option: quizData.options[selectedOption] || '',
+      timestamp: new Date().toISOString()
+    };
+    
     try {
-      await axios.post(`${API_BASE_URL}/api/save-quiz-answer`, {
-        quiz_item: quizData,
-        selected_option_index: selectedOption
-      });
-      setQuizAnswers(prev => ({ ...prev, [quizIndex]: selectedOption }));
-      setTimeout(() => {
-        setShowQuiz(false);
-        setCurrentIndex(prev => prev + 1);
-      }, 1000);
+      const existingResults = JSON.parse(localStorage.getItem('skSiltronQuizResults') || '{"results": []}');
+      existingResults.results = existingResults.results.filter(r => r.quiz_number !== quizResult.quiz_number);
+      existingResults.results.push(quizResult);
+      localStorage.setItem('skSiltronQuizResults', JSON.stringify(existingResults));
     } catch (error) {
       console.error('퀴즈 답변 저장 실패:', error);
-      setQuizAnswers(prev => ({ ...prev, [quizIndex]: selectedOption }));
-      setTimeout(() => {
-        setShowQuiz(false);
-        setCurrentIndex(prev => prev + 1);
-      }, 1000);
     }
-  }, [currentIndex, playClickSound, API_BASE_URL]);
+    
+    setQuizAnswers(prev => ({ ...prev, [quizIndex]: selectedOption }));
+    
+    setTimeout(() => {
+      setShowQuiz(false);
+      setCurrentIndex(prev => Math.min(prev + 1, files.length - 1));
+    }, 1000);
+  }, [currentIndex]);
 
-  const minSwipeDistance = 50;
-  const onTouchStart = (e) => {
-    if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-  const onTouchMove = (e) => {
-    if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-  const onTouchEnd = () => {
-    if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    if (distance > minSwipeDistance) nextFile();
-    else if (distance < -minSwipeDistance) prevFile();
-  };
-
-  const onMouseDown = (e) => {
-    if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
-    setMouseDown(true);
-    setMouseEnd(null);
-    setMouseStart(e.clientX);
-  };
-  const onMouseMove = (e) => {
-    if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
-    if (!mouseDown) return;
-    setMouseEnd(e.clientX);
-  };
-  const onMouseUp = () => {
-    if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
-    if (!mouseStart || !mouseEnd) {
-      setMouseDown(false);
+  // 선택지 처리 (간소화)
+  const handleChoiceSelect = useCallback((choiceData, selectedChoiceId, choiceArrayIndex) => {
+    const selectedChoice = choiceData.choices[choiceArrayIndex];
+    
+    if (!selectedChoice || selectedChoice.id !== selectedChoiceId) {
+      console.error('Choice mismatch!');
       return;
     }
-    const distance = mouseStart - mouseEnd;
-    if (distance > minSwipeDistance) nextFile();
-    else if (distance < -minSwipeDistance) prevFile();
-    setMouseDown(false);
-  };
-  const onMouseLeave = () => {
-    if (mouseDown) onMouseUp();
-  };
-
-  const handleReturnToChoice = () => {
-    playClickSound();
-    const lastChoiceIndex = files.findLastIndex(file => typeof file === 'object' && file.type === 'choice');
-    if (lastChoiceIndex !== -1) {
-      const choiceItem = files[lastChoiceIndex];
-      if (lastChoiceIndex + 1 < files.length) {
-        const nextItemAfterChoice = files[lastChoiceIndex + 1];
-        if (typeof nextItemAfterChoice === 'string' && choiceItem.choices) {
-          const isResultImage = choiceItem.choices.some(choice => choice.results === nextItemAfterChoice);
-          if (isResultImage) {
-            const newFiles = [...files];
-            newFiles.splice(lastChoiceIndex + 1, 1);
-            setFiles(newFiles);
-          }
-        }
+    
+    // 선택 답변 저장
+    setChoiceAnswers(prev => {
+      const newAnswers = { ...prev };
+      choiceData.choices.forEach(choice => {
+        delete newAnswers[choice.id];
+      });
+      return { ...newAnswers, [selectedChoiceId]: selectedChoiceId };
+    });
+    
+    // 로컬 스토리지에 저장
+    const cacheData = {
+      userChoices: {
+        timestamp: new Date().toISOString(),
+        choices: { [`choice_${currentIndex}`]: selectedChoiceId }
       }
-      setCurrentIndex(lastChoiceIndex);
+    };
+    
+    try {
+      localStorage.setItem('skSiltronChoices', JSON.stringify(cacheData));
+    } catch (error) {
+      console.error('선택지 저장 실패:', error);
     }
-    setShowReturnToChoice(false);
-  };
+    
+    // 결과 이미지가 있으면 다음에 삽입
+    if (selectedChoice.results) {
+      const newFiles = [...files];
+      newFiles.splice(currentIndex + 1, 0, selectedChoice.results);
+      setFiles(newFiles);
+    }
+    
+    setShowChoice(false);
+    setCurrentIndex(prev => Math.min(prev + 1, files.length - 1));
+  }, [currentIndex, files]);
 
+  // 키보드 이벤트
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (showQuiz || showChoice || showCrossroad || crossroadPending || showChoiceSummary) return;
+      if (showQuiz || showChoice || showCrossroad || showChoiceSummary) return;
       if (event.key === 'ArrowRight') nextFile();
       else if (event.key === 'ArrowLeft') prevFile();
     };
+    
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextFile, prevFile, showQuiz, showChoice, showCrossroad, crossroadPending, showChoiceSummary]);
+  }, [nextFile, prevFile, showQuiz, showChoice, showCrossroad, showChoiceSummary]);
 
-  const renderQuizPopup = (quizData, quizIndex) => {
-    const selectedAnswer = quizAnswers[quizIndex];
+  // 터치 이벤트 (간소화)
+  const handleTouchStart = (e) => {
+    if (showQuiz || showChoice || showCrossroad || showChoiceSummary) return;
+    const touchX = e.touches[0].clientX;
+    
+    const handleTouchEnd = (endEvent) => {
+      const endX = endEvent.changedTouches[0].clientX;
+      const diff = touchX - endX;
+      
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) nextFile();
+        else prevFile();
+      }
+      
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+    
+    document.addEventListener('touchend', handleTouchEnd);
+  };
+
+  // 렌더링 함수들
+  const renderMedia = (fileName) => {
+    const fileType = getFileType(fileName);
+    const fileUrl = `/contents/${fileName}`;
+    
+    if (fileType === 'image') {
+      return <img src={fileUrl} alt={fileName} className="media-content" />;
+    } else if (fileType === 'video') {
+      return (
+        <video 
+          key={fileName} // 파일이 바뀔 때마다 새로운 비디오 엘리먼트 생성
+          controls 
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          className="media-content"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain'
+          }}
+          onError={(e) => {
+            console.error('비디오 로딩 에러:', e.target.error);
+            console.error('비디오 파일 경로:', fileUrl);
+            console.error('에러 코드:', e.target.error?.code);
+            console.error('에러 메시지:', e.target.error?.message);
+            
+            // 파일 존재 여부 확인
+            fetch(fileUrl, { method: 'HEAD' })
+              .then(response => {
+                if (!response.ok) {
+                  console.error('파일이 존재하지 않습니다:', fileUrl);
+                } else {
+                  console.log('파일은 존재하지만 재생할 수 없습니다:', fileUrl);
+                  console.log('Content-Type:', response.headers.get('content-type'));
+                }
+              })
+              .catch(err => console.error('파일 확인 실패:', err));
+          }}
+          onLoadStart={() => {
+            console.log('비디오 로딩 시작:', fileUrl);
+          }}
+          onLoadedMetadata={(e) => {
+            console.log('비디오 메타데이터 로딩 완료:', fileUrl);
+            console.log('비디오 길이:', e.target.duration);
+            console.log('비디오 크기:', e.target.videoWidth, 'x', e.target.videoHeight);
+          }}
+          onLoadedData={() => {
+            console.log('비디오 데이터 로딩 완료:', fileUrl);
+          }}
+          onCanPlay={(e) => {
+            console.log('비디오 재생 준비 완료:', fileUrl);
+            console.log('비디오 준비 상태:', e.target.readyState);
+            console.log('비디오 일시정지 상태:', e.target.paused);
+            console.log('비디오 음소거 상태:', e.target.muted);
+            
+            // 재생 시도
+            const playPromise = e.target.play();
+            if (playPromise !== undefined) {
+              playPromise.then(() => {
+                console.log('비디오 자동 재생 성공:', fileUrl);
+              }).catch(error => {
+                console.error('자동 재생 실패:', error);
+                console.error('에러 이름:', error.name);
+                console.error('에러 메시지:', error.message);
+                
+                // 사용자 상호작용 후 재시도
+                if (error.name === 'NotAllowedError') {
+                  console.log('사용자 상호작용이 필요합니다. 클릭 후 재생됩니다.');
+                  
+                  // 사용자 클릭 이벤트 리스너 추가
+                  const handleUserClick = () => {
+                    e.target.play().then(() => {
+                      console.log('사용자 클릭 후 비디오 재생 성공:', fileUrl);
+                    }).catch(err => {
+                      console.error('사용자 클릭 후에도 재생 실패:', err);
+                    });
+                    document.removeEventListener('click', handleUserClick);
+                  };
+                  document.addEventListener('click', handleUserClick, { once: true });
+                }
+              });
+            }
+          }}
+          onPlay={() => {
+            console.log('비디오 재생 시작:', fileUrl);
+          }}
+          onPause={() => {
+            console.log('비디오 일시정지:', fileUrl);
+          }}
+          onEnded={() => {
+            console.log('비디오 재생 완료:', fileUrl);
+          }}
+          onTimeUpdate={(e) => {
+            // 재생 시간 업데이트 (5초마다만 로그)
+            const currentTime = Math.floor(e.target.currentTime);
+            if (currentTime % 5 === 0 && currentTime !== Math.floor(e.target.currentTime - 1)) {
+              console.log(`비디오 재생 중: ${currentTime}초 / ${Math.floor(e.target.duration)}초`);
+            }
+          }}
+          onClick={(e) => {
+            console.log('비디오 클릭됨');
+            // 비디오 클릭 시 사용자 상호작용으로 간주하고 재생 시도
+            if (!userInteracted) {
+              setUserInteracted(true);
+            }
+            
+            // 일시정지 상태라면 재생 시도
+            if (e.target.paused) {
+              e.target.play().then(() => {
+                console.log('클릭으로 비디오 재생 시작:', fileUrl);
+              }).catch(error => {
+                console.error('클릭 재생 실패:', error);
+              });
+            }
+          }}
+        >
+          <source src={fileUrl} type="video/webm" />
+          <source src={fileUrl.replace('.webm', '.mp4')} type="video/mp4" />
+          브라우저가 비디오를 지원하지 않습니다.
+        </video>
+      );
+    }
+    
+    return <div className="media-content">지원하지 않는 파일 형식입니다.</div>;
+  };
+
+  const renderQuiz = (quizData) => {
+    const selectedAnswer = quizAnswers[currentIndex];
+    
     return (
       <div className="quiz-overlay">
         <div className="quiz-popup">
           <h2 className="quiz-question">{quizData.question}</h2>
           <div className="quiz-options">
             {quizData.options.map((option, index) => (
-              <button key={index} className={`quiz-option ${selectedAnswer === index ? 'selected' : ''}`} onClick={() => handleQuizSubmit(quizData, index)}>
+              <button 
+                key={index} 
+                className={`quiz-option ${selectedAnswer === index ? 'selected' : ''}`}
+                onClick={() => handleQuizSubmit(quizData, index)}
+              >
                 {option}
               </button>
             ))}
           </div>
-          {selectedAnswer !== undefined && <div className="quiz-selected-message">답변이 저장되었습니다. 잠시 후 다음으로 이동합니다...</div>}
-        </div>
-      </div>
-    );
-  };
-
-  const renderChoiceScreen = (choiceData, choiceIndex) => {
-    const backgroundUrl = `${API_BASE_URL}/static/${safeEncodeURI(choiceData.background)}`;
-    
-    const calculateResponsiveProperties = (position, size) => {
-      const minDimension = Math.min(windowDimensions.width, windowDimensions.height);
-      
-      let squareSize, offsetX, offsetY;
-      
-      if (windowDimensions.width > windowDimensions.height) {
-        squareSize = windowDimensions.height;
-        offsetX = (windowDimensions.width - squareSize) / 2;
-        offsetY = 0;
-      } else {
-        squareSize = windowDimensions.width;
-        offsetX = 0;
-        offsetY = (windowDimensions.height - squareSize) / 2;
-      }
-      
-      const scaleFactor = isMobile ? 1.2 : 1.0;
-      
-      const absoluteX = offsetX + (position.x * squareSize);
-      const absoluteY = offsetY + (position.y * squareSize);
-      
-      const elementWidth = size.width * squareSize * scaleFactor;
-      const elementHeight = size.height * squareSize * scaleFactor;
-      
-      return {
-        position: {
-          left: `${absoluteX}px`,
-          top: `${absoluteY}px`
-        },
-        size: {
-          width: `${elementWidth}px`,
-          height: `${elementHeight}px`
-        }
-      };
-    };
-    
-    return (
-      <div className="choice-screen">
-        <img src={backgroundUrl} alt="배경" className="choice-background" />
-        <div className="choice-container">
-          {choiceData.choices.map((choice) => {
-            const imageUrl = `${API_BASE_URL}/static/${safeEncodeURI(choice.image)}`;
-            const responsiveProps = calculateResponsiveProperties(choice.position, choice.size);
-            const positionStyle = {
-              left: responsiveProps.position.left,
-              top: responsiveProps.position.top,
-              width: responsiveProps.size.width,
-              height: responsiveProps.size.height,
-              transform: 'translate(-50%, -50%)',
-              position: 'absolute'
-            };
-            return (
-              <div key={choice.id} className="choice-item" style={positionStyle} onClick={(e) => { e.stopPropagation(); handleChoiceSelect(choiceData, choice.id); }}>
-                <img src={imageUrl} alt={`선택 ${choice.id}`} className="choice-image" />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const renderCrossroadPopup = useCallback((crossroadData) => {
-    const question = crossroadData?.question || '어디로 가시겠습니까?';
-    const nextText = crossroadData?.nextText || '다음으로';
-    const previousText = crossroadData?.previousText || '이전으로';
-    const handleAction = (direction) => {
-      playClickSound();
-      if (direction === 'next') {
-        let nextIndex = currentIndex + 1;
-        
-        while (nextIndex < files.length) {
-          const nextFile = files[nextIndex];
-          if (typeof nextFile === 'string' || (typeof nextFile === 'object' && nextFile.type !== 'crossroad')) {
-            const loadNextMedia = async () => {
-              if (typeof nextFile === 'string' && !preloadedMedia.has(nextFile)) {
-                await preloadSingleMedia(nextFile);
-              }
-              setShowCrossroad(false);
-              setCrossroadPending(false);
-              setCurrentIndex(nextIndex);
-            };
-            loadNextMedia();
-            return;
-          }
-          nextIndex++;
-        }
-        
-        if (nextIndex >= files.length) {
-          setShowCrossroad(false);
-          setCrossroadPending(false);
-        }
-      } else {
-        if (currentChoiceIndex !== null && currentChoiceIndex < files.length) {
-          const newFiles = [...files];
-          const resultsIndex = currentIndex;
-          
-          if (resultsIndex >= 0 && resultsIndex < newFiles.length) {
-            newFiles.splice(resultsIndex, 1);
-            setFiles(newFiles);
-          }
-          
-          setShowCrossroad(false);
-          setCrossroadPending(false);
-          setCurrentIndex(currentChoiceIndex);
-          
-          setTimeout(() => {
-            setShowChoice(true);
-          }, 50);
-        } else {
-          const newFiles = [...files];
-          if (currentIndex >= 0 && currentIndex < newFiles.length) {
-            newFiles.splice(currentIndex, 1);
-            setFiles(newFiles);
-          }
-          
-          const choiceIndex = newFiles.findIndex(item => typeof item === 'object' && item.type === 'choice');
-          
-          if (choiceIndex !== -1) {
-            setShowCrossroad(false);
-            setCrossroadPending(false);
-            setCurrentIndex(choiceIndex);
-            setTimeout(() => {
-              setShowChoice(true);
-            }, 50);
-          } else {
-            setShowCrossroad(false);
-            setCrossroadPending(false);
-            setCurrentIndex(0);
-          }
-        }
-      }
-    };
-    return (
-      <div className="crossroad-overlay">
-        <div className="crossroad-popup">
-          <h2 className="crossroad-question">{question}</h2>
-          <div className="crossroad-buttons">
-            <button className="crossroad-btn prev" onClick={() => handleAction('prev')}>{previousText}</button>
-            <button className="crossroad-btn next" onClick={() => handleAction('next')}>{nextText}</button>
-          </div>
-        </div>
-      </div>
-    );
-  }, [currentIndex, files, preloadedMedia, preloadSingleMedia, currentChoiceIndex, playClickSound]);
-
-  const SimpleImage = ({ fileName }) => {
-    const preloadedItem = preloadedMedia.get(fileName);
-    const progressiveData = progressiveImages.get(fileName);
-    
-    useEffect(() => {
-      if (!isMobile && getFileType(fileName) === 'image' && !progressiveImages.has(fileName)) {
-        startProgressiveLoading(fileName);
-      }
-    }, [fileName, startProgressiveLoading, isMobile]);
-    
-    if (isMobile) {
-      if (preloadedItem && preloadedItem.preloaded) {
-        return <img src={preloadedItem.element.src} alt={fileName} className="media-content" style={{ opacity: 1, transition: 'none' }} />;
-      }
-      return <img src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} alt={fileName} className="media-content" style={{ opacity: 1, transition: 'none' }} />;
-    }
-
-    if (preloadedItem && preloadedItem.preloaded) {
-      return <img src={preloadedItem.element.src} alt={fileName} className="media-content" />;
-    }
-
-    if (!progressiveData || !progressiveData.src) {
-      return (
-        <div className="media-loading">
-          <div className="loading-spinner">🖼️</div>
-          <div>이미지 로딩 중...</div>
-        </div>
-      );
-    }
-
-    return <img src={progressiveData.src} alt={fileName} className="media-content" style={{ filter: progressiveData.isThumb ? 'blur(0.5px)' : 'none', transition: 'filter 0.3s ease' }} />;
-  };
-
-  const renderMedia = useCallback((fileName) => {
-    const fileType = getFileType(fileName);
-    
-    if (isMobile) {
-      if (fileType === 'image') {
-        return <img src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} alt={fileName} className="media-content" style={{ opacity: 1, transition: 'none' }} onClick={(e) => e.stopPropagation()} />;
-      }
-      if (fileType === 'video') {
-        return <video src={`${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} controls autoPlay={userInteracted} muted={isMuted} className="media-content" style={{ opacity: 1, transition: 'none' }} onClick={(e) => e.stopPropagation()} />;
-      }
-    }
-    
-    if (!isMobile && fileType === 'image') {
-      const preloadedItem = preloadedMedia.get(fileName);
-      if (preloadedItem && preloadedItem.preloaded) {
-        return <img src={preloadedItem.element.src} alt={fileName} className="media-content" onClick={(e) => e.stopPropagation()} />;
-      }
-      return <SimpleImage fileName={fileName} />;
-    }
-    
-    const videoPreloadedItem = preloadedMedia.get(fileName);
-    if (!videoPreloadedItem || !videoPreloadedItem.preloaded) {
-      return <div className="media-loading"><div className="loading-spinner">⏳</div><div>미디어 준비 중...</div></div>;
-    }
-    
-    if (fileType === 'video') {
-      return <video src={videoPreloadedItem.url || `${API_BASE_URL}/static/${safeEncodeURI(fileName)}`} controls autoPlay={userInteracted} muted={isMuted} className="media-content" preload="auto" onClick={(e) => e.stopPropagation()} onLoadedData={(e) => { if (userInteracted && e.target.paused) e.target.play().catch(console.error); }} />;
-    }
-    
-    return <div className="unsupported">지원하지 않는 파일 형식입니다.</div>;
-  }, [preloadedMedia, getFileType, safeEncodeURI, userInteracted, isMobile, API_BASE_URL, isMuted]);
-
-  const getSelectedChoices = useCallback(() => {
-    const choiceLabels = { 'book': '책', 'note': '노트', 'hands': '악수', 'hammer': '망치', 'pallete': '팔레트', 'eye': '눈' };
-    const selectedItems = Object.keys(choiceAnswers).filter(key => choiceAnswers[key]);
-    const uniqueItems = [...new Set(selectedItems)];
-    return uniqueItems.map(item => ({ id: item, label: choiceLabels[item] || item }));
-  }, [choiceAnswers]);
-
-  const renderChoiceSummary = useCallback((summaryData) => {
-    const selectedChoices = getSelectedChoices();
-    return (
-      <div className="choice-summary-overlay">
-        <div className="choice-summary-popup">
-          <h2 className="choice-summary-title">{summaryData.title}</h2>
-          <p className="choice-summary-description">{summaryData.description}</p>
-          <div className="selected-items">
-            {selectedChoices.length > 0 ? (
-              selectedChoices.map((choice) => (
-                <div key={choice.id} className="selected-item">
-                  <span className="item-icon">📦</span>
-                  <span className="item-label">{choice.label}</span>
-                </div>
-              ))
-            ) : (
-              <div className="no-items">선택된 아이템이 없습니다.</div>
-            )}
-          </div>
-          <button className="choice-summary-close-btn" onClick={() => { playClickSound(); setShowChoiceSummary(false); if (currentIndex < files.length - 1) { setCurrentIndex(prev => prev + 1); } }}>
-            완료
-          </button>
-        </div>
-      </div>
-    );
-  }, [getSelectedChoices, playClickSound, currentIndex, files.length]);
-
-  const renderReturnToChoicePopup = (data) => {
-    const handleNext = () => {
-      playClickSound();
-      const nextPageIndex = files.findIndex(file => file === data.nextPage);
-      if (nextPageIndex !== -1) {
-        setCurrentIndex(nextPageIndex);
-      }
-      setShowReturnToChoice(false);
-    };
-
-    return (
-      <div className="return-to-choice-overlay">
-        <div className="return-to-choice-popup">
-          <h2 className="return-to-choice-question">{data.question}</h2>
-          <div className="return-to-choice-buttons">
-            <button className="return-to-choice-btn prev" onClick={handleReturnToChoice}>{data.previousText}</button>
-            <button className="return-to-choice-btn next" onClick={handleNext}>{data.nextText}</button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderContent = () => {
-    if (error) return <div className="error-screen">{error}</div>;
-    if (files.length === 0 && !loading) return <div className="no-files">contents 폴더에 미디어 파일이 없습니다.</div>;
-
-    if (loading && !initialLoadComplete) return (
-      <div className="loading-screen">
-        <div className="loading-spinner">🚀</div>
-        <div>{isMobile ? '로딩 중...' : '콘텐츠를 준비하는 중...'}</div>
-        {preloading && (
-          <div className="progress-container">
-            <div className="progress-bar">
-              <div className="progress-fill" style={{width: `${preloadProgress}%`}}></div>
-            </div>
-            <div className="progress-text">{preloadProgress}%</div>
-          </div>
-        )}
-      </div>
-    );
-
-    if (currentIndex < 0 || currentIndex >= files.length) {
-      if (files.length > 0) {
-        setCurrentIndex(0);
-        return <div className="loading-screen"><div className="loading-spinner">⚙️</div><div>인덱스를 보정하는 중...</div></div>;
-      }
-      return <div className="loading-screen"><div className="loading-spinner">⚠️</div><div>콘텐츠를 표시할 수 없습니다.</div></div>;
-    }
-
-    const currentItem = files[currentIndex];
-    
-    if (typeof currentItem === 'object') {
-      if (currentItem.type === 'choice') return renderChoiceScreen(currentItem, currentIndex);
-      if (currentItem.type === 'quiz') {
-        for (let i = currentIndex - 1; i >= 0; i--) {
-          if (typeof files[i] === 'string') return renderMedia(files[i]);
-        }
-        return <div></div>; 
-      }
-      if (currentItem.type === 'crossroad') return null; 
-      if (currentItem.type === 'choice_summary') return renderChoiceSummary(currentItem);
-    }
-    if (typeof currentItem === 'string') {
-      return renderMedia(currentItem);
-    }
-    
-    return <div className="loading-screen"><div className="loading-spinner">❓</div><div>알 수 없는 콘텐츠 형식입니다.</div></div>;
-  };
-
-  const startTest = useCallback(() => {
-    setUserInteracted(true);
-    playClickSound();
-    setTestStarted(true);
-    initializeAudio();
-  }, [playClickSound, initializeAudio]);
-
-  if (!testStarted) {
-    return (
-      <div className="app">
-        <div className="start-screen">
-          <h1 className="start-title">반도체 진로성향검사</h1>
-          <p className="start-description">나의 직무 성향과 딱 맞는 반도체 커리어를 찾아보세요!</p>
-          <button onClick={startTest} className="start-button" disabled={loading}>
-            {loading ? `콘텐츠 로딩 중... ${preloadProgress}%` : '검사 시작하기'}
-          </button>
-          {loading && (
-            <div className="progress-container-start">
-              <div className="progress-bar">
-                <div className="progress-fill" style={{width: `${preloadProgress}%`}}></div>
-              </div>
+          {selectedAnswer !== undefined && (
+            <div className="quiz-selected-message">
+              답변이 저장되었습니다. 잠시 후 다음으로 이동합니다...
             </div>
           )}
         </div>
       </div>
     );
-  }
+  };
 
-  return (
-    <div className="app" ref={containerRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseLeave}>
-      <div className="media-container">
-        {renderContent()}
-        {showQuiz && renderQuizPopup(files[currentIndex], currentIndex)}
-        {showCrossroad && renderCrossroadPopup({
-          question: '어디로 가시겠습니까?',
-          nextText: '다음 장소는 어디일까?',
-          previousText: '다시 선택하고 싶어요.'
+  const renderChoice = (choiceData) => {
+    return (
+      <div className="choice-screen">
+        <img src={`/contents/${choiceData.background}`} alt="배경" className="choice-background" />
+        {choiceData.choices.map((choice, index) => {
+          // 정사각형 배경 기준으로 위치와 크기 계산
+          const squareSize = Math.min(window.innerWidth, window.innerHeight);
+          const offsetX = (window.innerWidth - squareSize) / 2;
+          const offsetY = (window.innerHeight - squareSize) / 2;
+          
+          // 선택지 위치와 크기 계산
+          const left = offsetX + (choice.position.x * squareSize);
+          const top = offsetY + (choice.position.y * squareSize);
+          const width = choice.size.width * squareSize; // 정사각형 배경 대비 비율로 적용
+          const height = choice.size.height * squareSize;
+          
+          return (
+            <img
+              key={choice.id}
+              src={`/contents/${choice.image}`}
+              alt={choice.id}
+              className={`choice-option choice-option-${index}`}
+              style={{
+                position: 'absolute',
+                left: `${left}px`,
+                top: `${top}px`,
+                transform: 'translate(-50%, -50%)',
+                cursor: 'pointer',
+                zIndex: 10 + index,
+                // 이미지 원본 비율 유지하면서 order.json의 size 비율 그대로 적용
+                maxWidth: `${width}px`,
+                maxHeight: `${height}px`,
+                width: 'auto',
+                height: 'auto',
+                transition: 'transform 0.3s ease',
+                display: 'block'
+              }}
+              onClick={() => handleChoiceSelect(choiceData, choice.id, index)}
+              onMouseEnter={(e) => {
+                e.target.style.transform = 'translate(-50%, -50%) scale(1.1)';
+                e.target.style.zIndex = 100;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = 'translate(-50%, -50%) scale(1)';
+                e.target.style.zIndex = 10 + index;
+              }}
+            />
+          );
         })}
-        {showReturnToChoice && renderReturnToChoicePopup(files[currentIndex])}
+      </div>
+    );
+  };
+
+  const renderCrossroad = (crossroadData) => {
+    const handlePrevious = () => {
+      // previousText 클릭 시 - 이전 choice로 돌아가기
+      const lastChoiceIndex = files.findLastIndex((file, index) => 
+        index < currentIndex && typeof file === 'object' && file.type === 'choice'
+      );
+      
+      if (lastChoiceIndex !== -1) {
+        // choice 결과 이미지 제거 (있다면)
+        const newFiles = [...files];
+        const choiceItem = files[lastChoiceIndex];
         
-        <button className="mute-button" onClick={toggleMute} aria-label={isMuted ? "음소거 해제" : "음소거"}>
-          {isMuted ? "🔇" : "🔊"}
+        // choice 다음에 결과 이미지가 있는지 확인하고 제거
+        if (lastChoiceIndex + 1 < files.length) {
+          const nextItem = files[lastChoiceIndex + 1];
+          if (typeof nextItem === 'string' && choiceItem.choices) {
+            const isResultImage = choiceItem.choices.some(choice => choice.results === nextItem);
+            if (isResultImage) {
+              newFiles.splice(lastChoiceIndex + 1, 1);
+              setFiles(newFiles);
+            }
+          }
+        }
+        
+        setCurrentIndex(lastChoiceIndex);
+        setShowCrossroad(false);
+      }
+    };
+    
+    const handleNext = () => {
+      // nextText 클릭 시 - 다음으로 이동
+      setShowCrossroad(false);
+      setCurrentIndex(prev => Math.min(prev + 1, files.length - 1));
+    };
+    
+    return (
+      <div className="crossroad-overlay">
+        <div className="crossroad-popup">
+          <h2>{crossroadData.question}</h2>
+          <div className="crossroad-buttons">
+            <button 
+              className="crossroad-button previous"
+              onClick={handlePrevious}
+            >
+              {crossroadData.previousText}
+            </button>
+            <button 
+              className="crossroad-button next"
+              onClick={handleNext}
+            >
+              {crossroadData.nextText}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderChoiceSummary = () => {
+    // 장소와 아이템 이름 매핑
+    const locationMap = {
+      'fap': '팹',
+      'emergency': '상황실',
+      'promote': '홍보실',
+      'QC': 'QC',
+      'research': '연구실',
+      'tech': '공정기술실'
+    };
+
+    const itemMap = {
+      'eye': '눈',
+      'hammer': '망치',
+      'book': '책',
+      'note': '노트',
+      'hands': '악수',
+      'pallete': '팔레트'
+    };
+
+    // 선택된 아이템들의 결과 이미지 경로를 찾기
+    const collectedItems = [];
+    
+    // files 배열에서 choice 타입을 찾아서 선택된 아이템의 results 이미지를 수집
+    files.forEach(file => {
+      if (typeof file === 'object' && file.type === 'choice' && file.choices) {
+        file.choices.forEach(choice => {
+          if (choiceAnswers[choice.id] && choice.results) {
+            const [location, item] = choice.id.split('_'); // 'fap_eye' -> ['fap', 'eye']
+            const locationName = locationMap[location] || location;
+            const itemName = itemMap[item] || item;
+            
+            collectedItems.push({
+              id: choice.id,
+              image: choice.results,
+              location: locationName,
+              item: itemName,
+              displayName: `${locationName} / ${itemName}`
+            });
+          }
+        });
+      }
+    });
+
+    return (
+      <div className="choice-summary-overlay">
+        <div className="choice-summary-popup">
+          <h2>당신이 선택한 아이템들</h2>
+          <p>여정을 통해 수집한 소중한 아이템들입니다.</p>
+          <div className="collected-items">
+            {collectedItems.length > 0 ? (
+              collectedItems.map((item, index) => (
+                <div key={item.id} className="collected-item">
+                  <img 
+                    src={`/contents/${item.image}`} 
+                    alt={item.displayName}
+                    className="collected-item-image"
+                  />
+                  <span className="collected-item-location">{item.location}</span>
+                  <span className="collected-item-name">{item.item}</span>
+                </div>
+              ))
+            ) : (
+              <p>선택된 아이템이 없습니다.</p>
+            )}
+          </div>
+
+        </div>
+      </div>
+    );
+  };
+
+  // 시작 화면
+  const renderStartScreen = (startData) => (
+    <div className="start-screen">
+      <img src={`/contents/${startData.background}`} alt="배경" className="start-background" />
+      <div className="start-content">
+        <h1>{startData.title}</h1>
+        <p>{startData.subtitle}</p>
+        <button 
+          className="start-button"
+          onClick={() => {
+            setTestStarted(true);
+            setUserInteracted(true);
+            setCurrentIndex(1);
+          }}
+        >
+          {startData.buttonText}
         </button>
       </div>
-      <div className="controls">
-        <button onClick={prevFile} className="nav-button prev-button" disabled={currentIndex === 0 || showChoice || showCrossroad || crossroadPending}>⟨</button>
-        <div className="control-center">
-          <span className="swipe-hint">스와이프하여 이동하세요</span>
-          <span className="file-counter">{currentIndex + 1} / {files.length}</span>
-        </div>
-        <button onClick={nextFile} className="nav-button next-button" disabled={currentIndex === files.length - 1 || showChoice || showCrossroad || crossroadPending}>⟩</button>
+    </div>
+  );
+
+  // 메인 렌더링
+  if (loading) {
+    return <div className="loading">로딩 중...</div>;
+  }
+
+  if (error) {
+    return <div className="error">{error}</div>;
+  }
+
+  if (!files.length) {
+    return <div className="error">파일이 없습니다.</div>;
+  }
+
+  const currentItem = files[currentIndex];
+
+  return (
+    <div className="app" onTouchStart={handleTouchStart}>
+      <div className="media-container">
+        {/* 시작 화면 */}
+        {!testStarted && typeof currentItem === 'object' && currentItem.type === 'start_button' && 
+          renderStartScreen(currentItem)
+        }
+        
+        {/* 일반 미디어 */}
+        {testStarted && typeof currentItem === 'string' && renderMedia(currentItem)}
+        
+        {/* 퀴즈 */}
+        {showQuiz && typeof currentItem === 'object' && currentItem.type === 'quiz' && 
+          renderQuiz(currentItem)
+        }
+        
+        {/* 선택지 */}
+        {showChoice && typeof currentItem === 'object' && currentItem.type === 'choice' && 
+          renderChoice(currentItem)
+        }
+        
+        {/* 교차로 */}
+        {showCrossroad && typeof currentItem === 'object' && currentItem.type === 'crossroad' && 
+          renderCrossroad(currentItem)
+        }
+        
+        {/* 선택 요약 */}
+        {showChoiceSummary && renderChoiceSummary()}
       </div>
+      
+      {/* 음소거 버튼 */}
+      {testStarted && (
+        <button 
+          className="mute-button"
+          onClick={toggleMute}
+          title={isMuted ? "음소거 해제" : "음소거"}
+        >
+          {isMuted ? "🔇" : "🔊"}
+        </button>
+      )}
+      
+      {/* 네비게이션 버튼 */}
+      {testStarted && !showQuiz && !showChoice && !showCrossroad && !showChoiceSummary && (
+        <div className="navigation">
+          <button onClick={prevFile} disabled={currentIndex === 0}>이전</button>
+          <span>{currentIndex + 1} / {files.length}</span>
+          <button onClick={nextFile} disabled={currentIndex === files.length - 1}>다음</button>
+        </div>
+      )}
     </div>
   );
 }
