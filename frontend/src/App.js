@@ -25,6 +25,9 @@ function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [currentAudioRef, setCurrentAudioRef] = useState(null);
+  
+  // 프리로딩 관련 상태
+  const [preloadedImages, setPreloadedImages] = useState(new Set());
 
   // 모바일 감지
   const isMobile = useCallback(() => {
@@ -40,6 +43,87 @@ function App() {
     if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) return 'audio';
     return 'unknown';
   }, []);
+
+  // 이미지 프리로딩 함수
+  const preloadImage = useCallback((fileName) => {
+    return new Promise((resolve, reject) => {
+      if (preloadedImages.has(fileName)) {
+        resolve(fileName);
+        return;
+      }
+
+      const img = new Image();
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Timeout loading ${fileName}`));
+      }, 5000);
+      
+      img.onload = () => {
+        clearTimeout(timeoutId);
+        setPreloadedImages(prev => new Set([...prev, fileName]));
+        console.log(`✅ 프리로드 완료: ${fileName}`);
+        resolve(fileName);
+      };
+      
+      img.onerror = (error) => {
+        clearTimeout(timeoutId);
+        console.warn(`❌ 프리로드 실패: ${fileName}`, error);
+        reject(new Error(`Failed to preload ${fileName}`));
+      };
+      
+      img.src = `/contents/${fileName}`;
+    });
+  }, [preloadedImages]);
+
+  // 다음 이미지들 프리로딩
+  const preloadNextImages = useCallback(async (startIndex, count = 3) => {
+    const imagesToPreload = [];
+    
+    for (let i = startIndex; i < Math.min(startIndex + count, files.length); i++) {
+      const file = files[i];
+      
+      if (typeof file === 'string' && getFileType(file) === 'image') {
+        imagesToPreload.push(file);
+      } else if (typeof file === 'object') {
+        // 배경 이미지
+        if (file.background && getFileType(file.background) === 'image') {
+          imagesToPreload.push(file.background);
+        }
+        // choice 이미지들
+        if (file.choices) {
+          file.choices.forEach(choice => {
+            if (choice.image && getFileType(choice.image) === 'image') {
+              imagesToPreload.push(choice.image);
+            }
+            if (choice.results && getFileType(choice.results) === 'image') {
+              imagesToPreload.push(choice.results);
+            }
+          });
+        }
+      }
+    }
+    
+    // 중복 제거
+    const uniqueImages = [...new Set(imagesToPreload)];
+    
+    if (uniqueImages.length > 0) {
+      console.log(`🔄 다음 ${uniqueImages.length}개 이미지 프리로딩 시작:`, uniqueImages);
+      
+      // 병렬로 프리로딩 (모바일에서는 2개씩, PC에서는 3개씩)
+      const batchSize = isMobile() ? 2 : 3;
+      for (let i = 0; i < uniqueImages.length; i += batchSize) {
+        const batch = uniqueImages.slice(i, i + batchSize);
+        try {
+          await Promise.allSettled(batch.map(img => preloadImage(img)));
+          // 배치 간 짧은 대기
+          if (i + batchSize < uniqueImages.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (error) {
+          console.warn('배치 프리로딩 실패:', error);
+        }
+      }
+    }
+  }, [files, getFileType, preloadImage, isMobile]);
 
   // 파일 로드
   useEffect(() => {
@@ -73,6 +157,14 @@ function App() {
         });
     }
   }, []);
+
+  // 현재 인덱스 변경 시 다음 이미지들 프리로딩
+  useEffect(() => {
+    if (testStarted && files.length > 0 && currentIndex >= 0) {
+      // 현재 인덱스 + 1부터 3개 이미지 프리로딩
+      preloadNextImages(currentIndex + 1, 3);
+    }
+  }, [currentIndex, testStarted, files.length, preloadNextImages]);
 
   // 오디오 초기화
   useEffect(() => {
@@ -410,14 +502,26 @@ function App() {
           loading="eager"
         />
         {choiceData.choices.map((choice, index) => {
-          const squareSize = Math.min(window.innerWidth, window.innerHeight);
-          const offsetX = (window.innerWidth - squareSize) / 2;
-          const offsetY = (window.innerHeight - squareSize) / 2;
+          // 모바일과 PC에서 동일한 위치 계산을 위한 개선된 로직
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
           
-          const left = offsetX + (choice.position.x * squareSize);
-          const top = offsetY + (choice.position.y * squareSize);
-          const width = choice.size.width * squareSize;
-          const height = choice.size.height * squareSize;
+          // 정사각형 기준 크기 (더 일관된 계산)
+          const baseSize = Math.min(viewportWidth, viewportHeight);
+          
+          // 배경 이미지가 정사각형이라고 가정하고 중앙 정렬
+          const containerWidth = baseSize;
+          const containerHeight = baseSize;
+          const offsetX = (viewportWidth - containerWidth) / 2;
+          const offsetY = (viewportHeight - containerHeight) / 2;
+          
+          // choice.position은 0~1 사이의 비율값
+          const absoluteX = offsetX + (choice.position.x * containerWidth);
+          const absoluteY = offsetY + (choice.position.y * containerHeight);
+          
+          // choice.size도 0~1 사이의 비율값
+          const maxWidth = choice.size.width * containerWidth;
+          const maxHeight = choice.size.height * containerHeight;
           
           return (
             <img
@@ -428,16 +532,18 @@ function App() {
               loading="eager"
               style={{
                 position: 'absolute',
-                left: `${left}px`,
-                top: `${top}px`,
+                left: `${absoluteX}px`,
+                top: `${absoluteY}px`,
                 transform: 'translate(-50%, -50%)',
                 cursor: 'pointer',
                 zIndex: 10 + index,
-                maxWidth: `${width}px`,
-                maxHeight: `${height}px`,
+                maxWidth: `${maxWidth}px`,
+                maxHeight: `${maxHeight}px`,
                 width: 'auto',
                 height: 'auto',
-                transition: 'transform 0.3s ease'
+                transition: 'transform 0.3s ease',
+                // 디버깅을 위한 임시 스타일 (나중에 제거 가능)
+                // border: '2px solid red'
               }}
               onClick={() => handleChoiceSelect(choiceData, choice.id, index)}
               onMouseEnter={(e) => {
