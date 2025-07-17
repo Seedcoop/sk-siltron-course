@@ -52,8 +52,8 @@
   "order": [
     {
       "type": "start_button",
-      "title": "SK 실트론 반도체 진로",
-      "subtitle": "반도체 웨이퍼의 세계로 떠나는 여행",
+      "title": "반도체스쿨 진로성향검사",
+      "subtitle": "내 성향에 맞는 반도체 진로 찾기",
       "buttonText": "시작하기!",
       "background": "0.png"
     },
