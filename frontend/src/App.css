@@ -720,15 +720,17 @@ body {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 0.8rem 1.5rem;
+  padding: 0.6rem 1.2rem;
   border-radius: 25px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 600;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
   position: relative;
   overflow: hidden;
+  white-space: nowrap;
+  min-width: 60px;
 }
 
 .navigation button::before {
@@ -854,7 +856,8 @@ body {
 
   .navigation button {
     padding: 0.4rem 0.8rem;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
+    min-width: 50px;
   }
 
   .mute-button {

@@ -403,7 +403,13 @@ function App() {
 
   const prevFile = useCallback(() => {
     setUserInteracted(true);
-    if (showQuiz || showChoice || showCrossroad || showChoiceSummary) return;
+    if (showQuiz || showCrossroad || showChoiceSummary) return;
+    
+    // choice 화면에서도 이전 이동 허용
+    if (showChoice) {
+      setShowChoice(false);
+    }
+    
     setCurrentIndex(prev => Math.max(prev - 1, 0));
   }, [showQuiz, showChoice, showCrossroad, showChoiceSummary]);
 
@@ -515,7 +521,9 @@ function App() {
 
   // 터치 이벤트
   const handleTouchStart = (e) => {
-    if (showQuiz || showChoice || showCrossroad || showChoiceSummary) return;
+    // choice 화면에서는 이전으로만 스와이프 가능 (다음은 선택으로만)
+    if (showQuiz || showCrossroad || showChoiceSummary) return;
+    
     const touchX = e.touches[0].clientX;
     
     const handleTouchEnd = (endEvent) => {
@@ -523,8 +531,16 @@ function App() {
       const diff = touchX - endX;
       
       if (Math.abs(diff) > 50) {
-        if (diff > 0) nextFile();
-        else prevFile();
+        if (showChoice) {
+          // choice 화면에서는 오른쪽 스와이프(이전)만 허용
+          if (diff < 0) { // 오른쪽 스와이프 (이전)
+            prevFile();
+          }
+        } else {
+          // 일반 화면에서는 양방향 스와이프
+          if (diff > 0) nextFile();
+          else prevFile();
+        }
       }
       
       document.removeEventListener('touchend', handleTouchEnd);
