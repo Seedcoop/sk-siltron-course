@@ -12,15 +12,22 @@ body {
   overflow: hidden;
   font-weight: 400;
   line-height: 1.6;
+  /* iOS Safe Area 지원 */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 .app {
   width: 100vw;
   height: 100vh;
+  /* iOS에서 실제 뷰포트 높이 사용 */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   position: relative;
-  background: radial-gradient(ellipse at center, rgba(255,255,255,0.02) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.02) 0%, transparent 70%);
 }
 
 /* 미디어 컨테이너 */
@@ -31,12 +38,14 @@ body {
   justify-content: center;
   position: relative;
   overflow: hidden;
-  padding-bottom: 80px; /* 네비게이션 바 공간 최소화 */
+  padding-bottom: 80px;
+  /* 네비게이션 바 공간 최소화 */
 }
 
 .media-content {
   max-width: 100%;
-  max-height: calc(100vh - 120px); /* 네비게이션 바와 여백 조정 */
+  max-height: calc(100vh - 120px);
+  /* 네비게이션 바와 여백 조정 */
   width: auto;
   height: auto;
   object-fit: contain;
@@ -63,8 +72,13 @@ body {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* 에러 콘텐츠 */
@@ -94,7 +108,8 @@ body {
 }
 
 /* 로딩 및 에러 */
-.loading, .error {
+.loading,
+.error {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,7 +129,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.7) 100%);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.7) 100%);
 }
 
 .start-background {
@@ -132,12 +147,12 @@ body {
   position: relative;
   z-index: 2;
   text-align: center;
-  background: linear-gradient(145deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 3rem 2.5rem;
   border-radius: 24px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
   max-width: 500px;
   animation: fadeInUp 0.8s ease-out;
 }
@@ -147,6 +162,7 @@ body {
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -157,18 +173,15 @@ body {
   font-size: 2.8rem;
   margin-bottom: 1.2rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  color: #000000;
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.3);
 }
 
 .start-content p {
   font-size: 1.3rem;
   margin-bottom: 2.5rem;
   opacity: 0.95;
-  color: #f0f0f0;
+  color: #000000;
   font-weight: 300;
   line-height: 1.5;
 }
@@ -195,7 +208,7 @@ body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transition: left 0.5s;
 }
 
@@ -215,7 +228,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.9) 100%);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.9) 100%);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
@@ -225,21 +238,26 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .quiz-popup {
-  background: linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: #2c3e50;
   padding: 3rem 2.5rem;
   border-radius: 24px;
   max-width: 650px;
   width: 90%;
   text-align: center;
-  box-shadow: 0 25px 50px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.1);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
   animation: slideInUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -248,6 +266,7 @@ body {
     opacity: 0;
     transform: translateY(50px) scale(0.9);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -288,7 +307,7 @@ body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
   transition: left 0.5s;
 }
 
@@ -362,11 +381,11 @@ body {
   gap: 1rem;
   color: #ffffff;
   z-index: 20;
-  background: linear-gradient(145deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%);
+  background: linear-gradient(145deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.5) 100%);
   backdrop-filter: blur(10px);
   padding: 2rem;
   border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .choice-container {
@@ -393,7 +412,7 @@ body {
 
 .choice-option:hover {
   transform: scale(1.1);
-  filter: brightness(1.2) drop-shadow(0 8px 16px rgba(0,0,0,0.3));
+  filter: brightness(1.2) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
 }
 
 .choice-option.loading {
@@ -415,7 +434,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.7) 100%);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.7) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -425,16 +444,16 @@ body {
 }
 
 .crossroad-popup {
-  background: linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: #2c3e50;
   padding: 3.5rem 3rem;
   border-radius: 24px;
   text-align: center;
   max-width: 650px;
   width: 90%;
-  box-shadow: 0 25px 50px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.1);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
   animation: slideInUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -479,7 +498,7 @@ body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transition: left 0.5s;
 }
 
@@ -503,32 +522,38 @@ body {
 
 /* 선택 요약 */
 .choice-summary-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.9) 100%);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.9) 100%);
   backdrop-filter: blur(10px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 100;
   animation: fadeIn 0.3s ease-out;
+  overflow-y: auto;
+  padding: 2rem 0;
+  /* iOS Safe Area 지원 */
+  padding-top: max(2rem, env(safe-area-inset-top));
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
 }
 
 .choice-summary-popup {
-  background: linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: #2c3e50;
-  padding: 3.5rem 3rem;
+  padding: 2rem 1.5rem;
   border-radius: 24px;
   max-width: 700px;
   width: 90%;
   text-align: center;
-  box-shadow: 0 25px 50px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.1);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
   animation: slideInUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  margin: auto;
 }
 
 .choice-summary-popup h2 {
@@ -549,20 +574,21 @@ body {
 }
 
 .collected-items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
   justify-content: center;
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
+  max-width: 100%;
 }
 
 .collected-item {
-  background: linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
   backdrop-filter: blur(20px);
   border: 2px solid rgba(102, 126, 234, 0.3);
   color: #2c3e50;
-  padding: 1.5rem;
-  border-radius: 20px;
+  padding: 1rem;
+  border-radius: 16px;
   box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
@@ -570,9 +596,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  min-width: 120px;
-  max-width: 150px;
+  gap: 0.8rem;
+  width: 100%;
 }
 
 .collected-item::before {
@@ -582,7 +607,7 @@ body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transition: left 0.5s;
 }
 
@@ -596,10 +621,10 @@ body {
 }
 
 .collected-item-image {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   object-fit: contain;
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
@@ -621,39 +646,56 @@ body {
   text-align: center;
 }
 
-.choice-summary-popup button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 1.3rem 3rem;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 1.2rem;
-  font-weight: 600;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-  position: relative;
-  overflow: hidden;
+.summary-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 2rem;
 }
 
-.choice-summary-popup button::before {
+.summary-button {
+  background: #ff7b54;
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 4px 15px rgba(255, 123, 84, 0.4);
+  position: relative;
+  overflow: hidden;
+  min-width: 180px;
+}
+
+.summary-button::before {
   content: '';
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transition: left 0.5s;
 }
 
-.choice-summary-popup button:hover::before {
+.summary-button:hover::before {
   left: 100%;
 }
 
-.choice-summary-popup button:hover {
-  transform: translateY(-3px) scale(1.05);
-  box-shadow: 0 15px 35px rgba(102, 126, 234, 0.6);
+.summary-button:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(255, 123, 84, 0.6);
+}
+
+.summary-button.retake {
+  background: #ff7b54;
+}
+
+.summary-button.personality {
+  background: #ff7b54;
 }
 
 /* 네비게이션 */
@@ -665,13 +707,13 @@ body {
   display: flex;
   align-items: center;
   gap: 1.5rem;
-  background: linear-gradient(145deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 1.2rem 2rem;
   border-radius: 50px;
   z-index: 50;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .navigation button {
@@ -696,7 +738,7 @@ body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transition: left 0.5s;
 }
 
@@ -721,7 +763,7 @@ body {
   color: #ffffff;
   font-weight: 600;
   font-size: 1.1rem;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   padding: 0 0.5rem;
 }
 
@@ -730,9 +772,9 @@ body {
   position: fixed;
   top: 2rem;
   right: 2rem;
-  background: linear-gradient(145deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: white;
   border-radius: 50%;
   width: 65px;
@@ -741,7 +783,7 @@ body {
   cursor: pointer;
   z-index: 1000;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -755,7 +797,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
   border-radius: 50%;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -766,9 +808,9 @@ body {
 }
 
 .mute-button:hover {
-  background: linear-gradient(145deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.1) 100%);
   transform: translateY(-2px) scale(1.1);
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.2);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .mute-button:active {
@@ -779,37 +821,128 @@ body {
 /* 모바일 최적화 */
 @media (max-width: 768px) {
   .start-content h1 {
-    font-size: 2rem;
+    font-size: 1.8rem;
+    line-height: 1.3;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
-  
+
   .start-content p {
     font-size: 1rem;
+    line-height: 1.4;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
-  
-  .quiz-popup, .choice-summary-popup {
+
+  .quiz-popup,
+  .choice-summary-popup {
     padding: 1.5rem;
     width: 95%;
   }
-  
+
   .quiz-question {
     font-size: 1.2rem;
+    line-height: 1.4;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
-  
+
   .navigation {
-    bottom: 1rem;
+    bottom: max(1rem, env(safe-area-inset-bottom));
     padding: 0.5rem;
   }
-  
+
   .navigation button {
     padding: 0.4rem 0.8rem;
     font-size: 0.9rem;
   }
-  
+
   .mute-button {
-    top: 1rem;
-    right: 1rem;
+    top: max(1rem, env(safe-area-inset-top));
+    right: max(1rem, env(safe-area-inset-right));
     width: 50px;
     height: 50px;
     font-size: 1.2rem;
+  }
+
+  .collected-items {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8rem;
+  }
+
+  .collected-item {
+    padding: 0.8rem;
+    gap: 0.6rem;
+  }
+
+  .collected-item-image {
+    width: 50px;
+    height: 50px;
+  }
+
+  .collected-item-location {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+  }
+
+  .collected-item-name {
+    font-size: 0.8rem;
+  }
+}
+
+/* 더 작은 모바일 화면 최적화 */
+@media (max-width: 480px) {
+  .start-content {
+    padding: 2rem 1.5rem;
+    max-width: 90%;
+  }
+
+  .start-content h1 {
+    font-size: 1.5rem;
+    line-height: 1.2;
+    margin-bottom: 1rem;
+  }
+
+  .start-content p {
+    font-size: 0.9rem;
+    line-height: 1.3;
+    margin-bottom: 2rem;
+  }
+
+  .start-button {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+  }
+
+  .choice-summary-popup {
+    padding: 1.5rem 1rem;
+  }
+
+  .choice-summary-popup h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+  }
+
+  .choice-summary-popup p {
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .collected-items {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .summary-buttons {
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .summary-button {
+    padding: 0.8rem 1.5rem;
+    font-size: 0.9rem;
+    min-width: auto;
+    width: 100%;
   }
 }

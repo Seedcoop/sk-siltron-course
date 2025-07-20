@@ -466,14 +466,39 @@ function App() {
       console.error('선택지 저장 실패:', error);
     }
     
-    if (selectedChoice.results) {
-      const newFiles = [...files];
-      newFiles.splice(currentIndex + 1, 0, selectedChoice.results);
-      setFiles(newFiles);
+    // 기존 결과 이미지들을 모두 제거하고 새로운 결과만 추가
+    const newFiles = [...files];
+    
+    // 현재 choice 다음에 있는 결과 이미지들을 찾아서 제거
+    let removeCount = 0;
+    for (let i = currentIndex + 1; i < newFiles.length; i++) {
+      const nextItem = newFiles[i];
+      if (typeof nextItem === 'string') {
+        // 이 이미지가 현재 choice의 결과 이미지인지 확인
+        const isResultImage = choiceData.choices.some(choice => choice.results === nextItem);
+        if (isResultImage) {
+          removeCount++;
+        } else {
+          break; // 결과 이미지가 아닌 다른 파일이 나오면 중단
+        }
+      } else {
+        break; // 객체(다른 choice나 crossroad 등)가 나오면 중단
+      }
     }
     
+    // 기존 결과 이미지들 제거
+    if (removeCount > 0) {
+      newFiles.splice(currentIndex + 1, removeCount);
+    }
+    
+    // 새로운 결과 이미지 추가
+    if (selectedChoice.results) {
+      newFiles.splice(currentIndex + 1, 0, selectedChoice.results);
+    }
+    
+    setFiles(newFiles);
     setShowChoice(false);
-    setCurrentIndex(prev => Math.min(prev + 1, files.length - 1));
+    setCurrentIndex(prev => Math.min(prev + 1, newFiles.length - 1));
   }, [currentIndex, files]);
 
   // 키보드 이벤트
@@ -673,19 +698,23 @@ function App() {
       
       if (lastChoiceIndex !== -1) {
         const newFiles = [...files];
-        const choiceItem = files[lastChoiceIndex];
         
-        if (lastChoiceIndex + 1 < files.length) {
-          const nextItem = files[lastChoiceIndex + 1];
-          if (typeof nextItem === 'string' && choiceItem.choices) {
-            const isResultImage = choiceItem.choices.some(choice => choice.results === nextItem);
-            if (isResultImage) {
-              newFiles.splice(lastChoiceIndex + 1, 1);
-              setFiles(newFiles);
-            }
+        // 현재 crossroad와 마지막 choice 사이의 모든 결과 이미지들을 제거
+        let removeCount = 0;
+        for (let i = lastChoiceIndex + 1; i < currentIndex; i++) {
+          const item = files[i];
+          if (typeof item === 'string') {
+            removeCount++;
+          } else {
+            break;
           }
         }
         
+        if (removeCount > 0) {
+          newFiles.splice(lastChoiceIndex + 1, removeCount);
+        }
+        
+        setFiles(newFiles);
         setCurrentIndex(lastChoiceIndex);
         setShowCrossroad(false);
       }
@@ -760,11 +789,37 @@ function App() {
       }
     });
 
+    const handleRetakeTest = () => {
+      // 테스트 다시 시작
+      setTestStarted(false);
+      setCurrentIndex(0);
+      setChoiceAnswers({});
+      setQuizAnswers({});
+      setShowChoiceSummary(false);
+      
+      // 파일 목록을 초기 상태로 리셋
+      const loadFiles = async () => {
+        try {
+          const response = await fetch('/contents/order.json');
+          const data = await response.json();
+          const loadedFiles = data.order || [];
+          setFiles(loadedFiles);
+        } catch (err) {
+          console.error('Error reloading files:', err);
+        }
+      };
+      loadFiles();
+    };
+
+    const handleShowPersonality = () => {
+      // 성향 분석 결과 보기 (추후 구현 가능)
+      alert('성향 분석 결과는 추후 구현 예정입니다.');
+    };
+
     return (
       <div className="choice-summary-overlay">
         <div className="choice-summary-popup">
-          <h2>당신이 선택한 아이템들</h2>
-          <p>여정을 통해 수집한 소중한 아이템들입니다.</p>
+          <h2>진로성향검사가 끝났습니다.</h2>
           <div className="collected-items">
             {collectedItems.length > 0 ? (
               collectedItems.map((item, index) => (
@@ -781,6 +836,20 @@ function App() {
             ) : (
               <p>선택된 아이템이 없습니다.</p>
             )}
+          </div>
+          <div className="summary-buttons">
+            <button 
+              className="summary-button retake"
+              onClick={handleRetakeTest}
+            >
+              다시 선택하고 싶어요.
+            </button>
+            <button 
+              className="summary-button personality"
+              onClick={handleShowPersonality}
+            >
+              나는 어떤 사람이었을까?
+            </button>
           </div>
         </div>
       </div>
