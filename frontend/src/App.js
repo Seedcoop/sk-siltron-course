@@ -829,7 +829,7 @@ function App() {
 
     const handleShowPersonality = () => {
       // 성향 분석 결과 보기 (추후 구현 가능)
-      alert('성향 분석 결과는 추후 구현 예정입니다.');
+      alert('성향 분석 결과를 선생님과 함께 알아보아요');
     };
 
     return (
