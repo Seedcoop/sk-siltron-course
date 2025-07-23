@@ -791,7 +791,34 @@ function App() {
           if (choiceAnswers[choice.id] && choice.results) {
             const [location, item] = choice.id.split('_');
             const locationName = locationMap[location] || location;
-            const itemName = itemMap[item] || item;
+            
+            // 더 안전한 아이템 이름 매핑
+            let itemName = itemMap[item];
+            if (!itemName) {
+              // itemMap에 없는 경우 기본값 설정
+              switch(item) {
+                case 'hands':
+                  itemName = '악수';
+                  break;
+                case 'pallete':
+                  itemName = '팔레트';
+                  break;
+                case 'eye':
+                  itemName = '눈';
+                  break;
+                case 'hammer':
+                  itemName = '망치';
+                  break;
+                case 'book':
+                  itemName = '책';
+                  break;
+                case 'note':
+                  itemName = '노트';
+                  break;
+                default:
+                  itemName = '아이템'; // 알 수 없는 경우 기본값
+              }
+            }
             
             collectedItems.push({
               id: choice.id,

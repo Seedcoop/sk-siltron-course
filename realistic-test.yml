@@ -1,0 +1,43 @@
+config:
+  target: 'https://sk-siltron-course.vercel.app'
+  phases:
+    # 1단계: 워밍업 (30초간 10명)
+    - duration: 30
+      arrivalRate: 10
+      name: "Warm up"
+    
+    # 2단계: 점진적 증가 (60초간 50명)
+    - duration: 60
+      arrivalRate: 50
+      name: "Ramp up to 50 users"
+    
+    # 3단계: 목표 부하 (120초간 150명)
+    - duration: 120
+      arrivalRate: 150
+      name: "Sustained load - 150 users"
+
+scenarios:
+  - name: "Realistic user flow"
+    weight: 100
+    flow:
+      # 메인 페이지 접속
+      - get:
+          url: "/"
+          expect:
+            - statusCode: 200
+      
+      # 사용자 생각 시간
+      - think: "{{ $randomInt(2, 5) }}"
+      
+      # order.json 로드 (실제 존재하는 파일)
+      - get:
+          url: "/contents/order.json"
+          expect:
+            - statusCode: 200
+      
+      # 사용자 생각 시간
+      - think: "{{ $randomInt(3, 7) }}"
+
+ensure:
+  p95: 3000  # 95%의 요청이 3초 이내
+  maxErrorRate: 5  # 에러율 5% 이하

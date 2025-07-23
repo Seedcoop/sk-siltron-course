@@ -823,17 +823,21 @@ body {
 /* 모바일 최적화 */
 @media (max-width: 768px) {
   .start-content h1 {
-    font-size: 1.8rem;
-    line-height: 1.3;
-    word-break: keep-all;
-    overflow-wrap: break-word;
+    font-size: 1.6rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .start-content p {
-    font-size: 1rem;
-    line-height: 1.4;
-    word-break: keep-all;
-    overflow-wrap: break-word;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .quiz-popup,
@@ -843,21 +847,66 @@ body {
   }
 
   .quiz-question {
-    font-size: 1.2rem;
-    line-height: 1.4;
+    font-size: 1.1rem;
+    line-height: 1.3;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  .quiz-option {
+    font-size: 0.95rem;
+    padding: 1.2rem 1rem;
+    line-height: 1.3;
     word-break: keep-all;
     overflow-wrap: break-word;
   }
 
+  .quiz-selected-message {
+    font-size: 0.95rem;
+    line-height: 1.3;
+  }
+
+  .crossroad-popup h2 {
+    font-size: 1.6rem;
+    line-height: 1.3;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  .crossroad-button {
+    font-size: 1rem;
+    padding: 1rem 1.8rem;
+    min-width: 140px;
+    line-height: 1.2;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  .choice-summary-popup h2 {
+    font-size: 1.6rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .navigation {
     bottom: max(1rem, env(safe-area-inset-bottom));
-    padding: 0.5rem;
+    padding: 0.5rem 1rem;
+    gap: 1rem;
   }
 
   .navigation button {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
-    min-width: 50px;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.75rem;
+    min-width: 45px;
+    line-height: 1;
+  }
+
+  .navigation span {
+    font-size: 0.9rem;
+    white-space: nowrap;
   }
 
   .mute-button {
@@ -884,68 +933,218 @@ body {
   }
 
   .collected-item-location {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.6rem;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .collected-item-name {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .summary-button {
+    font-size: 0.9rem;
+    padding: 0.9rem 1.5rem;
+    line-height: 1.2;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 }
 
 /* 더 작은 모바일 화면 최적화 */
 @media (max-width: 480px) {
   .start-content {
-    padding: 2rem 1.5rem;
-    max-width: 90%;
+    padding: 1.5rem 1rem;
+    max-width: 95%;
   }
 
   .start-content h1 {
-    font-size: 1.5rem;
-    line-height: 1.2;
-    margin-bottom: 1rem;
+    font-size: 1.3rem;
+    line-height: 1.1;
+    margin-bottom: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .start-content p {
-    font-size: 0.9rem;
-    line-height: 1.3;
-    margin-bottom: 2rem;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    margin-bottom: 1.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .start-button {
-    padding: 1rem 2rem;
-    font-size: 1.1rem;
+    padding: 0.9rem 1.8rem;
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  .quiz-popup {
+    padding: 1.2rem 0.8rem;
+  }
+
+  .quiz-question {
+    font-size: 1rem;
+    line-height: 1.2;
+    margin-bottom: 1.5rem;
+  }
+
+  .quiz-option {
+    font-size: 0.85rem;
+    padding: 1rem 0.8rem;
+    line-height: 1.2;
   }
 
   .choice-summary-popup {
-    padding: 1.5rem 1rem;
+    padding: 1.2rem 0.8rem;
   }
 
   .choice-summary-popup h2 {
-    font-size: 1.8rem;
-    margin-bottom: 1rem;
+    font-size: 1.4rem;
+    margin-bottom: 0.8rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .choice-summary-popup p {
-    font-size: 1rem;
+    font-size: 0.9rem;
+    margin-bottom: 1.2rem;
+    line-height: 1.2;
+  }
+
+  .crossroad-popup {
+    padding: 2rem 1.5rem;
+  }
+
+  .crossroad-popup h2 {
+    font-size: 1.4rem;
     margin-bottom: 1.5rem;
+    line-height: 1.2;
+  }
+
+  .crossroad-button {
+    font-size: 0.9rem;
+    padding: 0.9rem 1.5rem;
+    min-width: 120px;
+    line-height: 1.1;
+  }
+
+  .navigation {
+    padding: 0.4rem 0.8rem;
+    gap: 0.8rem;
+  }
+
+  .navigation button {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.7rem;
+    min-width: 40px;
+  }
+
+  .navigation span {
+    font-size: 0.8rem;
   }
 
   .collected-items {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.6rem;
-    margin-bottom: 1.5rem;
+    gap: 0.5rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .collected-item {
+    padding: 0.6rem;
+    gap: 0.4rem;
+  }
+
+  .collected-item-image {
+    width: 40px;
+    height: 40px;
+  }
+
+  .collected-item-location {
+    font-size: 0.6rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .collected-item-name {
+    font-size: 0.7rem;
   }
 
   .summary-buttons {
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 0.6rem;
   }
 
   .summary-button {
-    padding: 0.8rem 1.5rem;
-    font-size: 0.9rem;
+    padding: 0.7rem 1.2rem;
+    font-size: 0.8rem;
     min-width: auto;
     width: 100%;
+    line-height: 1.1;
+  }
+}
+
+/* 초소형 모바일 화면 (320px 이하) */
+@media (max-width: 320px) {
+  .start-content h1 {
+    font-size: 1.1rem;
+  }
+
+  .start-content p {
+    font-size: 0.75rem;
+  }
+
+  .start-button {
+    font-size: 0.9rem;
+    padding: 0.8rem 1.5rem;
+  }
+
+  .quiz-question {
+    font-size: 0.9rem;
+  }
+
+  .quiz-option {
+    font-size: 0.8rem;
+    padding: 0.9rem 0.7rem;
+  }
+
+  .choice-summary-popup h2 {
+    font-size: 1.2rem;
+  }
+
+  .crossroad-popup h2 {
+    font-size: 1.2rem;
+  }
+
+  .crossroad-button {
+    font-size: 0.8rem;
+    padding: 0.8rem 1.2rem;
+    min-width: 100px;
+  }
+
+  .navigation button {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+    min-width: 35px;
+  }
+
+  .navigation span {
+    font-size: 0.75rem;
+  }
+
+  .summary-button {
+    font-size: 0.75rem;
+    padding: 0.6rem 1rem;
   }
 }

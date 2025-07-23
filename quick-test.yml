@@ -1,0 +1,24 @@
+config:
+  target: 'https://sk-siltron-course.vercel.app'
+  phases:
+    # 빠른 테스트: 60초간 50명
+    - duration: 60
+      arrivalRate: 50
+      name: "Quick test - 50 users"
+
+scenarios:
+  - name: "Basic user flow"
+    flow:
+      - get:
+          url: "/"
+      - think: 2
+      - get:
+          url: "/contents/order.json"
+      - think: 3
+      - get:
+          url: "/contents/{{ $randomInt(0, 8) }}.png"
+      - think: 5
+
+ensure:
+  p95: 2000
+  maxErrorRate: 2
